@@ -1,0 +1,437 @@
+# ==================================================================
+# All stroke
+# ==================================================================
+
+# install.packages(c("tidyverse","gridExtra","patchwork"))  
+# install.packages(c("ggplotify")) # if needed
+library(tidyverse)
+library(gridExtra)
+library(patchwork)
+library(ggplotify)
+library(glue)
+
+# -------------------------------
+# DATA (All-stroke example)
+# -------------------------------
+df <- tribble(
+  ~author_year,        ~study,          ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
+  # Black vs White
+  "Madsen 2024",       "GCNKSS",        "USA – 5 counties",                "Black vs White",                              1.77,    1.58, 1.96,  "High",
+  "Koton 2020",        "ARIC",          "USA – 4 communities",             "Black vs White",                              1.85,    1.65, 2.06,  "Some concerns",
+  "Gardener 2020",     "NOMAS",         "USA – Northern Manhattan",        "Black vs White",                              1.33,    0.99, 1.79,  "Some concerns",
+  "Domanski 2025",     "CARDIA (men)",  "USA – 4 cities",                  "Black vs White (men)",                        5.00,    1.45,17.30,  "Some concerns",
+  "Domanski 2025",     "CARDIA (women)","USA – 4 cities",                  "Black vs White (women)",                      2.80,    1.01, 7.77,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Sub-Saharan Africa vs Norway (men)",          1.29,    1.07, 1.56,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Sub-Saharan Africa vs Norway (women)",        0.72,    0.48, 1.08,  "Very high",
+
+  # Asian & Middle-East
+  "Ramadan 2018",      "Bradford",      "UK – Bradford",                   "Pakistani vs White",                          1.53,    1.21, 1.94,  "Very high",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Pakistani vs Danish-born",                    2.12,    1.96, 2.28,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Turkish vs Danish-born",                      1.07,    0.93, 1.21,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Iraqi vs Danish-born",                         1.46,    1.29, 1.64,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Iranian vs Danish-born",                       1.53,    1.34, 1.73,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Middle East vs Norway (men)",                 0.40,    0.33, 0.47,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Middle East vs Norway (women)",               0.41,    0.31, 0.55,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South Asia vs Norway (men)",                  0.77,    0.67, 0.88,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South Asia vs Norway (women)",                0.88,    0.73, 1.05,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "SE Asia vs Norway (men)",                     0.55,    0.44, 0.69,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "SE Asia vs Norway (women)",                   0.67,    0.56, 0.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "East Asia vs Norway (men)",                   0.52,    0.37, 0.74,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "East Asia vs Norway (women)",                 0.36,    0.22, 0.58,  "Very high",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",          "Asian/Other vs NZ European",                  1.05,    0.90, 1.20,  "High",
+
+  # Hispanic / Latin America
+  "Gardener 2020",     "NOMAS",         "USA – Northern Manhattan",        "Hispanic vs White",                           1.08,    0.78, 1.49,  "Some concerns",
+  "Calancie 2024",     "WHI",           "USA – women only",                "HWAA vs NH White (women)",                    0.65,    0.46, 0.92,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Central America vs Norway (men)",             0.72,    0.24, 2.18,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Central America vs Norway (women)",           1.57,    0.65, 3.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South America vs Norway (men)",               0.94,    0.68, 1.31,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South America vs Norway (women)",             0.99,    0.68, 1.44,  "Very high",
+
+  # Indigenous & Pacific 
+  "Balabanski 2023",   "Australia",     "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (women)",        3.20,    2.40, 4.40,  "High",
+  "Balabanski 2023",   "Australia",     "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (men)",          2.60,    2.00, 3.50,  "High",
+  "Balabanski 2020",   "Australia",     "Australia – Central NT (regional)","Aboriginal vs non-Aboriginal",                3.00,    2.00, 4.00,  "Very high",
+  "Balabanski 2018",   "Australia",     "Australia – SA (regional, pilot)", "Aboriginal vs non-Aboriginal",                1.70,    1.30, 2.30,  "Very high",
+  "Dos Santos 2024",   "SAINTSS",       "Australia – SA & NT (pilot)",      "Aboriginal vs non-Indigenous",                2.90,    2.00, 4.00,  "Very high",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",           "Māori vs NZ European",                        1.38,    1.10, 1.60,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs White women",              1.48,    0.89, 2.46,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs Black women",              0.82,    0.52, 1.28,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs White men",                0.75,    0.42, 1.33,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs Black men",                0.42,    0.24, 0.74,  "High",
+  "Krishnamurthi 2018","ARCOS IV",      "New Zealand – Auckland",           "Pacific vs European",                         1.61,    1.39, 1.87,  "High",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",           "Pacific vs NZ European",                      1.82,    1.60, 2.10,  "High"
+)
+
+# Order as entered and create plotting y
+df <- df %>% mutate(row_id = row_number())
+
+library(ggplot2)
+library(dplyr)
+library(glue)
+library(patchwork)
+
+# ------------------------------
+# Prepare data
+# ------------------------------
+df_plot <- df %>%
+  mutate(
+    y = rev(row_number()),
+    est_ci = glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")
+  )
+
+# ------------------------------
+# LEFT panel: author/ comparison
+# ------------------------------
+p_left <- ggplot(df_plot, aes(y = y)) +
+  geom_text(aes(x = 0.02, label = author_year), hjust = 0, size = 3.2, colour = "black") +
+  geom_text(aes(x = 0.55, label = comparison),  hjust = 0, size = 3.2, colour = "black") +
+  labs(
+    title   = "All-stroke incidence by ethnicity: study-level estimates",
+    subtitle= "Left: Author / Comparison  •  Middle: Forest (log scale)  •  Right: Adjusted RR (95% CI) & ROBINS-E"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(margin = margin(b = 6))
+  )
+
+# ---- assemble ----
+final_plot <- p_left + p_mid + p_right + plot_layout(widths = c(1.0, 1.1, 0.7))
+final_plot
+
+# ------------------------------
+# MIDDLE panel: forest plot
+# ------------------------------
+library(ggplot2)
+library(grid)   # for unit()
+library(scales)
+
+# ---- limits for the forest axis ----
+x_min  <- 0.25
+x_max  <- 5.5
+
+# build a single data frame for plotting with capped CIs and overflow flags
+df_mid <- df_plot |>
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = lo < x_min,
+    right_overflow = hi > x_max
+  )
+
+# one forest, no gap; arrows indicate overflow
+p_mid <- ggplot(df_mid, aes(y = y)) +
+  # CI segments (capped)
+  geom_segment(aes(x = lo_cap, xend = hi_cap, yend = y), linewidth = 0.4) +
+
+  # overflow arrows
+  geom_segment(
+    data = subset(df_mid, left_overflow),
+    aes(x = x_min, xend = lo_cap, yend = y),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.4
+  ) +
+  geom_segment(
+    data = subset(df_mid, right_overflow),
+    aes(x = hi_cap, xend = x_max, yend = y),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.4
+  ) +
+
+  # point estimates
+  geom_point(aes(x = x), size = 2) +
+
+  # reference line at 1
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+
+  scale_x_log10(
+    limits = c(x_min, x_max),
+    breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+    labels = label_number(accuracy = 0.01, trim = TRUE),
+    expand = c(0, 0)
+  ) +
+  coord_cartesian(clip = "off") +     # allow arrow heads to show at the edges
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.title = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks  = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    plot.margin = margin(5, 0, 5, 0)
+  )
+
+# ------------------------------
+# RIGHT panel: effect + ROB
+# ------------------------------
+p_right <- ggplot(df_plot, aes(y = y)) +
+  geom_text(aes(x = 0.02, label = est_ci), hjust = 0, size = 3.2, colour = "black") +
+  geom_text(aes(x = 0.70, label = rob),    hjust = 0, size = 3.2, colour = "black") +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+# ------------------------------
+# Combine panels
+# ------------------------------
+final_plot <- p_left + p_mid + p_right +
+  patchwork::plot_layout(widths = c(0.9, 1.1, 0.6))
+final_plot
+
+# ==================================================================
+# Ischaemic stroke
+# ==================================================================
+
+df_is <- tribble(
+  ~author_year,     ~region,        ~comparison,                           ~effect, ~lo,   ~hi,   ~rob,
+  # Black vs White
+  "Calancie 2024",  "USA – WHI",    "NHAA vs NHW",                         1.04,    0.87,  1.24,  "Some concerns",
+  "Gardener 2020",  "USA – NOMAS",  "Black vs White",                      1.25,    0.92,  1.72,  "Some concerns",
+  "Madsen 2024",    "USA – GCNKSS", "Black vs White",                      1.74,    1.55,  1.95,  "High",
+  "Wafa 2018",      "UK – SLSR",    "Black vs White",                      1.67,    1.36,  2.04,  "High",
+  "Howard 2019",    "USA – REGARDS","Black vs White",                      1.59,    1.26,  2.01,  "Some concerns",
+
+  # Asian & Middle-East
+  "Khan 2017",      "Canada",       "South Asian vs White",                0.37,    0.36,  0.38,  "Very high",
+  "Khan 2017",      "Canada",       "Chinese vs White",                    0.57,    0.56,  0.59,  "Very high",
+  "Ramadan 2018",   "UK – Bradford","Pakistani vs White",                  1.65,    1.28,  2.13,  "Very high",
+  "Tan 2020",       "Singapore",    "Malay vs Chinese",                    1.20,    1.15,  1.25,  "Very high",
+  "Tan 2020",       "Singapore",    "Indian vs Chinese",                   0.85,    0.80,  0.90,  "Very high",
+  "Krishnamurthi 2018","NZ – ARCOS","Asian vs European",                   0.78,    0.65,  0.93,  "High",
+
+  # Hispanic / Latino
+  "Gardener 2020",  "USA – NOMAS",  "Hispanic vs White",                   1.09,    0.77,  1.54,  "Some concerns",
+  "Lisabeth 2021",  "USA – BASIC",  "Mexican American vs NH White",        0.85,    0.70,  1.00,  "Some concerns",  # CI not reported, approximate
+  "Calancie 2024",  "USA – WHI",    "HWAA vs NHW",                         0.48,    0.32,  0.70,  "Some concerns",
+
+  # Indigenous
+  "Balabanski 2023","Australia",    "Aboriginal vs non-Aboriginal (F)",    3.10,    2.00,  4.90,  "High",
+  "Balabanski 2023","Australia",    "Aboriginal vs non-Aboriginal (M)",    2.50,    1.80,  3.60,  "High",
+  "Balabanski 2020","Australia",    "Aboriginal vs non-Aboriginal",        2.50,    2.00,  4.00,  "Very high",
+  "Balabanski 2018","Australia",    "Aboriginal vs non-Aboriginal (<55y)", 2.00,    0.90,  4.50,  "Very high",
+
+  # Other (Pacific)
+  "Krishnamurthi 2018","NZ – ARCOS","Pacific vs European",                 1.02,    0.87,  1.21,  "High"
+) %>%
+  mutate(row_id = row_number(),
+         y = rev(row_id),
+         est_ci = sprintf("%.2f (%.2f–%.2f)", effect, lo, hi))
+
+# ------------ REUSE ------------------
+# axis limits
+x_min <- 0.25
+x_max <- 5.5
+
+df_is <- df_is %>%
+  mutate(lo_cap = pmax(lo, x_min),
+         hi_cap = pmin(hi, x_max),
+         left_overflow = lo < x_min,
+         right_overflow = hi > x_max)
+
+p_mid_is <- ggplot(df_is, aes(y = y)) +
+  geom_segment(aes(x = lo_cap, xend = hi_cap, yend = y), linewidth = 0.4) +
+  geom_segment(data = subset(df_is, left_overflow),
+               aes(x = x_min, xend = lo_cap, yend = y),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.4) +
+  geom_segment(data = subset(df_is, right_overflow),
+               aes(x = hi_cap, xend = x_max, yend = y),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.4) +
+  geom_point(aes(x = effect), size = 2) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(limits = c(x_min, x_max),
+                breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+                labels = label_number(accuracy = 0.01, trim = TRUE),
+                expand = c(0,0)) +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks  = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor   = element_blank(),
+        plot.margin = margin(5,0,5,0))
+
+# LEFT panel
+p_left_is <- ggplot(df_is, aes(y = y)) +
+  geom_text(aes(x = 0.02, label = author_year), hjust = 0, size = 3.2) +
+  geom_text(aes(x = 0.55, label = comparison),  hjust = 0, size = 3.2) +
+  labs(title = "Ischaemic stroke incidence by ethnicity: study-level estimates",
+       subtitle = "Left: Author / Comparison  •  Middle: Forest (log scale)  •  Right: Adjusted RR (95% CI) & ROBINS-E") +
+  scale_x_continuous(limits = c(0,1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size=11) +
+  theme(plot.title = element_text(face="bold"),
+        plot.subtitle = element_text(margin = margin(b=6)))
+
+# RIGHT panel
+p_right_is <- ggplot(df_is, aes(y = y)) +
+  geom_text(aes(x = 0.02, label = est_ci), hjust = 0, size = 3.2) +
+  geom_text(aes(x = 0.70, label = rob),    hjust = 0, size = 3.2) +
+  scale_x_continuous(limits=c(0,1), breaks=NULL) +
+  scale_y_continuous(NULL, breaks=NULL) +
+  theme_void(base_size=11)
+
+# Combine
+final_ischaemic <- p_left_is + p_mid_is + p_right_is +
+  patchwork::plot_layout(widths = c(0.9, 1.1, 0.6))
+
+final_ischaemic
+
+# ==================================================================
+# Haemorrhagic stroke
+# ==================================================================
+
+# --- packages ---
+library(tidyverse)
+library(scales)
+library(patchwork)
+
+# =========
+# 1) DATA
+# =========
+
+## ICH
+df_ich <- tribble(
+  ~author_year,     ~region,                ~comparison,                                ~effect, ~lo,   ~hi,    ~rob,
+  # Black vs White
+  "Gardener 2020",  "USA – NOMAS",          "Black vs White",                            1.93,   0.66,  6.53,  "Some concerns",
+  "Madsen 2024",    "USA – GCNKSS",         "Black vs White",                            2.54,   2.02,  3.20,  "High",
+  "Li 2025",        "UK – SLSR",            "Black vs White",                            0.83,   0.60,  1.16,  "High",
+
+  # Asian & Middle-Eastern
+  "Khan 2017",      "Canada (ON/BC)",       "South Asian vs White",                      0.34,   0.31,  0.37,  "Very high",
+  "Khan 2017",      "Canada (ON/BC)",       "Chinese vs White",                          1.18,   1.11,  1.24,  "Very high",
+  "Ramadan 2018",   "UK – Bradford",        "Pakistani vs White",                        1.46,   0.79,  2.73,  "Very high",
+  "Lim 2024",       "Singapore – SSR",      "Malay vs Chinese",                          1.48,   1.27,  1.63,  "High",
+  "Lim 2024",       "Singapore – SSR",      "Indian vs Chinese",                         0.69,   0.54,  0.88,  "High",
+  # (Qatar rows omitted here because CIs not reported)
+
+  # Hispanic / Latino
+  "Gardener 2020",  "USA – NOMAS",          "Hispanic vs White",                         1.90,   0.66,  5.60,  "Some concerns",
+
+  # Indigenous
+  "Balabanski 2023","Australia (nat.)",     "Aboriginal vs non-Aboriginal (women)",      3.50,   1.60,  8.90,  "High",
+  "Balabanski 2023","Australia (nat.)",     "Aboriginal vs non-Aboriginal (men)",        2.70,   1.30,  6.00,  "High",
+  "Balabanski 2020","Australia (regional)", "Aboriginal vs non-Aboriginal",              7.80,   3.00, 20.00,  "Very high",
+  "Balabanski 2018","Australia (pilot)",    "Aboriginal vs non-Aboriginal",             16.00,   4.00, 61.00,  "Very high",
+  "Krishnamurthi 2018","NZ – ARCOS",        "Māori vs European",                         0.71,   0.34,  1.49,  "High",
+
+  # Other (Pacific)
+  "Krishnamurthi 2018","NZ – ARCOS",        "Pacific vs European",                       1.75,   1.18,  2.59,  "High"
+) %>%
+  mutate(row_id = row_number(),
+         y = rev(row_id),
+         est_ci = sprintf("%.2f (%.2f–%.2f)", effect, lo, hi))
+
+## SAH
+df_sah <- tribble(
+  ~author_year,     ~region,                ~comparison,                                ~effect, ~lo,   ~hi,    ~rob,
+  # Black vs White
+  "Madsen 2024",    "USA – GCNKSS",         "Black vs White",                            1.44,   0.84,  2.50,  "High",
+  "Xia 2023",       "USA – SID (NY/FL)",    "Black vs NH White",                         1.55,   1.51,  1.58,  "Very high",
+  "Li 2025",        "UK – SLSR",            "Black vs White",                            1.76,   1.06,  2.93,  "High",
+
+  # Asian & Middle-Eastern
+  "Xia 2023",       "USA – SID (NY/FL)",    "Asian/Pacific Islander vs NH White",        0.88,   0.84,  0.94,  "Very high",
+   "Ramadan 2018",   "UK – Bradford",        "Pakistani vs White",                        0.2,   0.03,  1.48,  "Very high",
+
+  # Hispanic / Latino
+  "Xia 2023",       "USA – SID (NY/FL)",    "Hispanic vs NH White",                      0.96,   0.93,  0.99,  "Very high",
+
+  # Indigenous
+  "Balabanski 2023","Australia (nat.)",     "Aboriginal vs non-Aboriginal (women)",      1.40,   0.60,  3.50,  "High",
+  "Balabanski 2023","Australia (nat.)",     "Aboriginal vs non-Aboriginal (men)",        1.70,   0.60,  5.10,  "High",
+  "Balabanski 2020","Australia (regional)", "Aboriginal vs non-Aboriginal",              2.80,   1.00,  9.00,  "Very high",
+  "Krishnamurthi 2018","NZ – ARCOS",        "Māori vs European",                         2.57,   1.45,  4.57,  "High"
+) %>%
+  mutate(row_id = row_number(),
+         y = rev(row_id),
+         est_ci = sprintf("%.2f (%.2f–%.2f)", effect, lo, hi))
+
+# ==========================================
+# 2) A small helper to draw the forest plot
+#    (same look as your previous figure)
+# ==========================================
+plot_forest_cap <- function(df, title,
+                            x_min = 0.25, x_max = 5.5,
+                            left_width = 0.9, mid_width = 1.1, right_width = 0.6) {
+
+  df <- df %>%
+    mutate(lo_cap = pmax(lo, x_min),
+           hi_cap = pmin(hi, x_max),
+           left_overflow  = lo < x_min,
+           right_overflow = hi > x_max)
+
+  # middle (forest)
+  p_mid <- ggplot(df, aes(y = y)) +
+    geom_segment(aes(x = lo_cap, xend = hi_cap, yend = y), linewidth = 0.4) +
+    geom_segment(data = subset(df, left_overflow),
+                 aes(x = x_min, xend = lo_cap, yend = y),
+                 arrow = arrow(length = unit(3, "pt"), type = "closed"),
+                 linewidth = 0.4) +
+    geom_segment(data = subset(df, right_overflow),
+                 aes(x = hi_cap, xend = x_max, yend = y),
+                 arrow = arrow(length = unit(3, "pt"), type = "closed"),
+                 linewidth = 0.4) +
+    geom_point(aes(x = effect), size = 2) +
+    geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+    scale_x_log10(limits = c(x_min, x_max),
+                  breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+                  labels = label_number(accuracy = 0.01, trim = TRUE),
+                  expand = c(0,0)) +
+    coord_cartesian(clip = "off") +
+    theme_minimal(base_size = 11) +
+    theme(axis.title = element_blank(),
+          axis.text.y = element_blank(),
+          axis.ticks  = element_blank(),
+          panel.grid.major.y = element_blank(),
+          panel.grid.minor   = element_blank(),
+          plot.margin = margin(5,0,5,0))
+
+  # left (author + comparison)
+  p_left <- ggplot(df, aes(y = y)) +
+    geom_text(aes(x = 0.02, label = author_year), hjust = 0, size = 3.2) +
+    geom_text(aes(x = 0.55, label = comparison),  hjust = 0, size = 3.2) +
+    labs(title = title,
+         subtitle = "Left: Author / Comparison  •  Middle: Forest (log scale)  •  Right: Adjusted RR (95% CI) & ROBINS-E") +
+    scale_x_continuous(limits = c(0,1), breaks = NULL) +
+    scale_y_continuous(NULL, breaks = NULL) +
+    theme_void(base_size = 11) +
+    theme(plot.title = element_text(face = "bold"),
+          plot.subtitle = element_text(margin = margin(b = 6)))
+
+  # right (estimate + ROB)
+  p_right <- ggplot(df, aes(y = y)) +
+    geom_text(aes(x = 0.02, label = est_ci), hjust = 0, size = 3.2) +
+    geom_text(aes(x = 0.70, label = rob),    hjust = 0, size = 3.2) +
+    scale_x_continuous(limits = c(0,1), breaks = NULL) +
+    scale_y_continuous(NULL, breaks = NULL) +
+    theme_void(base_size = 11)
+
+  # assemble
+  p_left + p_mid + p_right + plot_layout(widths = c(left_width, mid_width, right_width))
+}
+
+# ==============================
+# 3) Draw the two figures
+# ==============================
+p_ich <- plot_forest_cap(
+  df_ich,
+  title = "Intracerebral haemorrhage (ICH): study-level estimates",
+  x_min = 0.25, x_max = 5.5     # keep same caps as the other figure
+)
+
+p_sah <- plot_forest_cap(
+  df_sah,
+  title = "Subarachnoid haemorrhage (SAH): study-level estimates",
+  x_min = 0.25, x_max = 5.5
+)
+
+p_ich
+p_sah
