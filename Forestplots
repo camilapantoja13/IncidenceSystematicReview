@@ -11,12 +11,12 @@ library(ggplotify)
 library(glue)
 
 # -------------------------------
-# DATA (All-stroke example)
+# DATA (All-stroke)
 # -------------------------------
 df <- tribble(
   ~author_year,        ~study,          ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
   # Black vs White
-  "Madsen 2024",       "GCNKSS",        "USA – 5 counties",                "Black vs White",                              1.77,    1.58, 1.96,  "High",
+  "Madsen 2024",       "GCNKSS",        "USA – 5 counties",                "Black vs White",                              1.83,    1.63, 2.02,  "High",
   "Koton 2020",        "ARIC",          "USA – 4 communities",             "Black vs White",                              1.85,    1.65, 2.06,  "Some concerns",
   "Gardener 2020",     "NOMAS",         "USA – Northern Manhattan",        "Black vs White",                              1.33,    0.99, 1.79,  "Some concerns",
   "Domanski 2025",     "CARDIA (men)",  "USA – 4 cities",                  "Black vs White (men)",                        5.00,    1.45,17.30,  "Some concerns",
@@ -34,8 +34,8 @@ df <- tribble(
   "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Middle East vs Norway (women)",               0.41,    0.31, 0.55,  "Very high",
   "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South Asia vs Norway (men)",                  0.77,    0.67, 0.88,  "Very high",
   "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South Asia vs Norway (women)",                0.88,    0.73, 1.05,  "Very high",
-  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "SE Asia vs Norway (men)",                     0.55,    0.44, 0.69,  "Very high",
-  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "SE Asia vs Norway (women)",                   0.67,    0.56, 0.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South-East Asia vs Norway (men)",             0.55,    0.44, 0.69,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South-East Asia vs Norway (women)",           0.67,    0.56, 0.79,  "Very high",
   "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "East Asia vs Norway (men)",                   0.52,    0.37, 0.74,  "Very high",
   "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "East Asia vs Norway (women)",                 0.36,    0.22, 0.58,  "Very high",
   "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",          "Asian/Other vs NZ European",                  1.05,    0.90, 1.20,  "High",
@@ -74,10 +74,39 @@ library(patchwork)
 # ------------------------------
 # Prepare data
 # ------------------------------
+library(dplyr)
+library(glue)
+
+reported_keys <- tribble(
+  ~author_year, ~study,
+  # Reported estimates
+  "Madsen 2024",        "GCNKSS",
+  "Gardener 2020",      "NOMAS",
+  "Domanski 2025",      "CARDIA (men)",
+  "Domanski 2025",      "CARDIA (women)",
+  "Mkoma 2021",         "Denmark",
+  "Calancie 2024",      "WHI",
+  "Müller 2019",        "ARICHS",
+  "Balabanski 2023",    "Australia",
+  "Balabanski 2020",    "Australia",
+  "Balabanski 2018",    "Australia",
+  "Dos Santos 2024",    "SAINTSS",
+  "Müller 2019",        "SHS + ARIC",
+  "Gardener 2020",      "NOMAS"        # (Hispanic vs White)
+)
+
+# Everything not in reported_keys := calculated
 df_plot <- df %>%
+  left_join(reported_keys %>% mutate(est_source = "reported"),
+            by = c("author_year","study")) %>%
   mutate(
-    y = rev(row_number()),
-    est_ci = glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")
+    est_source = if_else(is.na(est_source), "calculated", est_source),
+    y          = rev(row_number()),
+    est_ci     = glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})",
+                      .trim = FALSE),
+    est_ci_tag = if_else(est_source == "reported",
+                         glue("{est_ci} [rep]"),
+                         glue("{est_ci} [calc]"))
   )
 
 # ------------------------------
@@ -88,7 +117,7 @@ p_left <- ggplot(df_plot, aes(y = y)) +
   geom_text(aes(x = 0.55, label = comparison),  hjust = 0, size = 3.2, colour = "black") +
   labs(
     title   = "All-stroke incidence by ethnicity: study-level estimates",
-    subtitle= "Left: Author / Comparison  •  Middle: Forest (log scale)  •  Right: Adjusted RR (95% CI) & ROBINS-E"
+    subtitle= "Left: Author / Comparison • Middle: Forest (log) • Right: Adjusted RR (95% CI) & ROBINS-E  |  Symbols: ● reported, ○ calculated; CI: solid=reported, dashed=calculated; labels: [rep]/[calc]"
   ) +
   scale_x_continuous(limits = c(0, 1), breaks = NULL) +
   scale_y_continuous(NULL, breaks = NULL) +
@@ -98,10 +127,6 @@ p_left <- ggplot(df_plot, aes(y = y)) +
     plot.subtitle = element_text(margin = margin(b = 6))
   )
 
-# ---- assemble ----
-final_plot <- p_left + p_mid + p_right + plot_layout(widths = c(1.0, 1.1, 0.7))
-final_plot
-
 # ------------------------------
 # MIDDLE panel: forest plot
 # ------------------------------
@@ -109,12 +134,10 @@ library(ggplot2)
 library(grid)   # for unit()
 library(scales)
 
-# ---- limits for the forest axis ----
-x_min  <- 0.25
-x_max  <- 5.5
+x_min <- 0.25
+x_max <- 5.5
 
-# build a single data frame for plotting with capped CIs and overflow flags
-df_mid <- df_plot |>
+df_mid <- df_plot %>%
   mutate(
     x      = effect,
     lo_cap = pmax(lo, x_min),
@@ -123,38 +146,48 @@ df_mid <- df_plot |>
     right_overflow = hi > x_max
   )
 
-# one forest, no gap; arrows indicate overflow
 p_mid <- ggplot(df_mid, aes(y = y)) +
-  # CI segments (capped)
-  geom_segment(aes(x = lo_cap, xend = hi_cap, yend = y), linewidth = 0.4) +
+  # CI segments (capped) with linetype by source
+  geom_segment(aes(x = lo_cap, xend = hi_cap, yend = y, linetype = est_source),
+               linewidth = 0.5, colour = "black") +
 
   # overflow arrows
   geom_segment(
     data = subset(df_mid, left_overflow),
-    aes(x = x_min, xend = lo_cap, yend = y),
+    aes(x = x_min, xend = lo_cap, yend = y, linetype = est_source),
     arrow = arrow(length = unit(3, "pt"), type = "closed"),
-    linewidth = 0.4
+    linewidth = 0.5, colour = "black"
   ) +
   geom_segment(
     data = subset(df_mid, right_overflow),
-    aes(x = hi_cap, xend = x_max, yend = y),
+    aes(x = hi_cap, xend = x_max, yend = y, linetype = est_source),
     arrow = arrow(length = unit(3, "pt"), type = "closed"),
-    linewidth = 0.4
+    linewidth = 0.5, colour = "black"
   ) +
 
-  # point estimates
-  geom_point(aes(x = x), size = 2) +
+  # point estimates by shape
+  geom_point(aes(x = x, shape = est_source),
+             size = 2.2, colour = "black", stroke = 0.6) +
 
-  # reference line at 1
   geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
-
   scale_x_log10(
     limits = c(x_min, x_max),
     breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
     labels = label_number(accuracy = 0.01, trim = TRUE),
     expand = c(0, 0)
   ) +
-  coord_cartesian(clip = "off") +     # allow arrow heads to show at the edges
+  scale_shape_manual(
+    name   = "Estimate source",
+    values = c(reported = 16, calculated = 1),    # ● vs ○
+    labels = c("Reported", "Calculated")
+  ) +
+  scale_linetype_manual(
+    name   = "Estimate source",
+    values = c(reported = "solid", calculated = "22"),  # dashed
+    labels = c("Reported", "Calculated")
+  ) +
+  guides(linetype = "none") +  # keep one legend (shape) to avoid duplication
+  coord_cartesian(clip = "off") +
   theme_minimal(base_size = 11) +
   theme(
     axis.title = element_blank(),
@@ -162,25 +195,37 @@ p_mid <- ggplot(df_mid, aes(y = y)) +
     axis.ticks  = element_blank(),
     panel.grid.major.y = element_blank(),
     panel.grid.minor   = element_blank(),
-    plot.margin = margin(5, 0, 5, 0)
+    plot.margin = margin(5, 0, 5, 0),
+    legend.position = "bottom"
   )
 
 # ------------------------------
 # RIGHT panel: effect + ROB
 # ------------------------------
+
 p_right <- ggplot(df_plot, aes(y = y)) +
-  geom_text(aes(x = 0.02, label = est_ci), hjust = 0, size = 3.2, colour = "black") +
-  geom_text(aes(x = 0.70, label = rob),    hjust = 0, size = 3.2, colour = "black") +
+  geom_text(aes(x = 0.02, label = est_ci_tag), hjust = 0, size = 3.2, colour = "black") +
+  geom_text(aes(x = 0.70, label = rob),       hjust = 0, size = 3.2, colour = "black") +
   scale_x_continuous(limits = c(0, 1), breaks = NULL) +
   scale_y_continuous(NULL, breaks = NULL) +
   theme_void(base_size = 11)
 
+# (optional) if you prefer clearer linetype names in the mid panel:
+# scale_linetype_manual(values = c(reported = "solid", calculated = "dashed"))
+
 # ------------------------------
 # Combine panels
 # ------------------------------
+
 final_plot <- p_left + p_mid + p_right +
   patchwork::plot_layout(widths = c(0.9, 1.1, 0.6))
 final_plot
+
+# Caption: Effect estimates represent relative risk (RR), incidence rate ratio (IRR), or hazard ratio (HR) for first-ever stroke incidence by ethnicity.\n
+    [rep] = estimate directly reported in the source publication; [calc] = estimate calculated in this review from reported incidence rates and case counts.\n
+    Point markers: ● reported, ○ calculated. CI bars: solid line = reported, dashed line = calculated. Reference line = RR=1 (no difference).\n
+    ROBINS-E risk-of-bias assessment shown at right. Estimates may differ across studies due to variation in ethnic classification, adjustment for socioeconomic\n
+    and vascular factors, and methods of case ascertainment (registry validation vs. administrative codes
 
 # ==================================================================
 # Ischaemic stroke
