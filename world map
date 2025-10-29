@@ -1,0 +1,92 @@
+# Load required libraries
+library(tidyverse)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+
+# Create publication count table
+pub_counts <- tribble(
+  ~iso3c, ~n,
+  "USA", 9,
+  "CAN", 1,
+  "GBR", 4,   
+  "DNK", 1,
+  "NOR", 1,
+  "SGP", 2,
+  "QAT", 1,
+  "AUS", 4,
+  "NZL", 3
+)
+
+# Get world map data
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# Join publication counts with world map
+world_pubs <- world %>%
+  left_join(pub_counts, by = c("iso_a3" = "iso3c"))
+
+# Fix Norway - it has iso_a3 = "-99" in rnaturalearth, so match by name
+world_pubs <- world_pubs %>%
+  mutate(n = case_when(
+    name == "Norway" ~ 1,
+    TRUE ~ n
+  ))
+
+# Create categories for the legend
+world_pubs <- world_pubs %>%
+  mutate(pub_category = case_when(
+    is.na(n) ~ "0",
+    n == 1 ~ "1",
+    n == 2 ~ "2",
+    n == 3 ~ "3",
+    n >= 4 & n <= 5 ~ "4–5",
+    n >= 6 ~ "6+",
+    TRUE ~ "0"
+  )) %>%
+  mutate(pub_category = factor(pub_category, 
+                                levels = c("0", "1", "2", "3", "4–5", "6+")))
+
+# Define color palette (light to dark purple)
+colors <- c("0" = "#F0E6F6",
+            "1" = "#D7BFE8",
+            "2" = "#B794D8",
+            "3" = "#9768C8",
+            "4–5" = "#7B4DB8",
+            "6+" = "#5E30A0")
+
+# Get centroids for country labels
+country_centroids <- world_pubs %>%
+  filter(!is.na(n)) %>%
+  st_centroid() %>%
+  st_transform(crs = "+proj=robin") %>%
+  mutate(coords = st_coordinates(geometry)) %>%
+  as_tibble() %>%
+  select(iso_a3, n, coords)
+
+# Create the map
+ggplot(data = world_pubs) +
+  geom_sf(aes(fill = pub_category), color = "white", size = 0.1) +
+  # Add shadow/outline for better visibility
+  geom_label(data = country_centroids, 
+             aes(x = coords[,1], y = coords[,2], label = n),
+             size = 3, fontface = "bold", 
+             fill = alpha("white", 0.7), 
+             label.size = 0,
+             label.padding = unit(0.15, "lines")) +
+  scale_fill_manual(values = colors,
+                    name = "Publications\n(2015–2025)",
+                    drop = FALSE) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(size = 12, face = "bold"),
+    legend.text = element_text(size = 10),
+    plot.background = element_rect(fill = "white", color = NA)
+  ) +
+  coord_sf(crs = "+proj=robin")  # Robinson projection for better world map display
+
+# Save the plot
+ggsave("publication_map.png", width = 12, height = 6, dpi = 300, bg = "white")
