@@ -1,0 +1,892 @@
+# ==================================================================
+# All stroke
+# ==================================================================
+
+# install.packages(c("tidyverse","gridExtra","patchwork"))  
+# install.packages(c("ggplotify")) # if needed
+library(tidyverse)
+library(gridExtra)
+library(patchwork)
+library(ggplotify)
+library(glue)
+
+# -------------------------------
+# DATA (All-stroke)
+# -------------------------------
+df <- tribble(
+  ~author_year,        ~study,          ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
+  # Black vs White
+  "Madsen 2024",       "GCNKSS",        "USA – 5 counties",                "Black vs White",                              1.83,    1.63, 2.02,  "High",
+  "Koton 2020",        "ARIC",          "USA – 4 communities",             "Black vs White",                              1.85,    1.65, 2.06,  "Some concerns",
+  "Gardener 2020",     "NOMAS",         "USA – Northern Manhattan",        "Black vs White",                              1.33,    0.99, 1.79,  "Some concerns",
+  "Domanski 2025",     "CARDIA (men)",  "USA – 4 cities",                  "Black vs White (men)",                        5.00,    1.45,17.30,  "Some concerns",
+  "Domanski 2025",     "CARDIA (women)","USA – 4 cities",                  "Black vs White (women)",                      2.80,    1.01, 7.77,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Sub-Saharan Africa vs Norway (men)",          1.29,    1.07, 1.56,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Sub-Saharan Africa vs Norway (women)",        0.72,    0.48, 1.08,  "Very high",
+ "Bonnechère 2023",    "UK Biobank",  "UK – nationwide (volunteer cohort)", "Black vs White",                             1.70, 1.35, 2.09, "High",
+ 
+  # Asian & Middle-East
+  "Ramadan 2018",      "Bradford",      "UK – Bradford",                   "Pakistani vs White",                          1.53,    1.21, 1.94,  "Very high",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Pakistani vs Danish-born",                    2.12,    1.96, 2.28,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Turkish vs Danish-born",                      1.07,    0.93, 1.21,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Iraqi vs Danish-born",                         1.46,    1.29, 1.64,  "Some concerns",
+  "Mkoma 2021",        "Denmark",       "Denmark – nationwide",            "Iranian vs Danish-born",                       1.53,    1.34, 1.73,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Middle East vs Norway (men)",                 0.40,    0.33, 0.47,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Middle East vs Norway (women)",               0.41,    0.31, 0.55,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South Asia vs Norway (men)",                  0.77,    0.67, 0.88,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South Asia vs Norway (women)",                0.88,    0.73, 1.05,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South-East Asia vs Norway (men)",             0.55,    0.44, 0.69,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South-East Asia vs Norway (women)",           0.67,    0.56, 0.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "East Asia vs Norway (men)",                   0.52,    0.37, 0.74,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "East Asia vs Norway (women)",                 0.36,    0.22, 0.58,  "Very high",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",          "Asian/Other vs NZ European",                  1.05,    0.90, 1.20,  "High",
+
+  # Hispanic / Latin America
+  "Gardener 2020",     "NOMAS",         "USA – Northern Manhattan",        "Hispanic vs White",                           1.08,    0.78, 1.49,  "Some concerns",
+  "Calancie 2024",     "WHI",           "USA – women only",                "HWAA vs NH White (women)",                    0.65,    0.46, 0.92,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "Central America vs Norway (men)",             0.72,    0.24, 2.18,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "Central America vs Norway (women)",           1.57,    0.65, 3.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",  "Norway – nationwide",             "South America vs Norway (men)",               0.94,    0.68, 1.31,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)","Norway – nationwide",             "South America vs Norway (women)",             0.99,    0.68, 1.44,  "Very high",
+
+  # Indigenous & Pacific 
+  "Balabanski 2023",   "Australia",     "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (women)",        3.20,    2.40, 4.40,  "High",
+  "Balabanski 2023",   "Australia",     "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (men)",          2.60,    2.00, 3.50,  "High",
+  "Balabanski 2020",   "Australia",     "Australia – Central NT (regional)","Aboriginal vs non-Aboriginal",                3.00,    2.00, 4.00,  "Very high",
+  "Balabanski 2018",   "Australia",     "Australia – SA (regional, pilot)", "Aboriginal vs non-Aboriginal",                1.70,    1.30, 2.30,  "Very high",
+  "Dos Santos 2024",   "SAINTSS",       "Australia – SA & NT (pilot)",      "Aboriginal vs non-Indigenous",                2.90,    2.00, 4.00,  "Very high",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",           "Māori vs NZ European",                        1.38,    1.10, 1.60,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs White women",              1.48,    0.89, 2.46,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs Black women",              0.82,    0.52, 1.28,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs White men",                0.75,    0.42, 1.33,  "High",
+  "Müller 2019",       "SHS + ARIC",    "USA – pooled cohorts",             "American Indian vs Black men",                0.42,    0.24, 0.74,  "High",
+  "Krishnamurthi 2018","ARCOS IV",      "New Zealand – Auckland",           "Pacific vs European",                         1.61,    1.39, 1.87,  "High",
+  "Feigin 2025",       "ARCOS V",       "New Zealand – Auckland",           "Pacific vs NZ European",                      1.82,    1.60, 2.10,  "High"
+)
+
+library(dplyr)
+library(stringr)
+
+df_reg <- df %>%
+  mutate(
+    region_group = case_when(
+      str_detect(region, "(?i)USA|United States|Cincinnati|Manhattan|ARIC|CARDIA|WHI|HCUP|SHS") ~ "North America",
+      str_detect(region, "(?i)UK|United Kingdom|England|Bradford|Denmark|Norway|CVDNOR")        ~ "Europe",
+      str_detect(region, "(?i)Singapore|Qatar|Doha|Hamad|HGH")                                  ~ "Asia & Middle East",
+      str_detect(region, "(?i)New Zealand|Auckland|ARCOS|Australia|SAINTSS")                   ~ "Oceania",
+      TRUE ~ "Other/Unclear"
+    ),
+    region_group = factor(region_group, levels = c("North America","Europe","Asia & Middle East","Oceania","Other/Unclear"))
+  ) %>%
+  arrange(region_group, study, author_year)
+
+
+library(ggplot2)
+library(dplyr)
+library(glue)
+library(patchwork)
+
+# ---------- 0) Make a unique key to avoid many-to-many ----------
+# 1) Make a unique key in df
+df <- df %>%
+  mutate(key = paste(author_year, study, comparison, sep = " | "))
+
+# 2) Build reported_keys with the same key
+# (Re)create your reported_keys table
+reported_keys <- tribble(
+  ~author_year, ~study, ~comparison, ~est_source,
+  "Madsen 2024",      "GCNKSS",      "Black vs White",               "reported",
+  "Gardener 2020",    "NOMAS",       "Black vs White",               "reported",
+  "Domanski 2025",    "CARDIA (men)", "Black vs White (men)",        "reported",
+  "Domanski 2025",    "CARDIA (women)", "Black vs White (women)",    "reported",
+  "Mkoma 2021",       "Denmark",     "Pakistani vs Danish-born",     "reported",
+  "Mkoma 2021",       "Denmark",     "Turkish vs Danish-born",       "reported",
+  "Mkoma 2021",       "Denmark",     "Iraqi vs Danish-born",         "reported",
+  "Mkoma 2021",       "Denmark",     "Iranian vs Danish-born",       "reported",
+  "Calancie 2024",    "WHI",         "HWAA vs NH White (women)",     "reported",
+  "Balabanski 2023",  "Australia",   "Aboriginal vs non-Aboriginal (women)", "reported",
+  "Balabanski 2023",  "Australia",   "Aboriginal vs non-Aboriginal (men)",   "reported",
+  "Balabanski 2020",  "Australia",   "Aboriginal vs non-Aboriginal", "reported",
+  "Balabanski 2018",  "Australia",   "Aboriginal vs non-Aboriginal", "reported",
+  "Dos Santos 2024",  "SAINTSS",     "Aboriginal vs non-Indigenous", "reported",
+  "Müller 2019",      "SHS + ARIC",  "American Indian vs White women","reported",
+  "Müller 2019",      "SHS + ARIC",  "American Indian vs Black women","reported",
+  "Müller 2019",      "SHS + ARIC",  "American Indian vs White men", "reported",
+  "Müller 2019",      "SHS + ARIC",  "American Indian vs Black men", "reported",
+  "Bonnechère 2023",  "UK Biobank",  "Black vs White",               "reported"
+)
+
+# --- classify comparisons into blocks (for ordering within regions)
+block_map <- function(x){
+  case_when(
+    grepl("Black vs White", x, ignore.case=TRUE) ~ "Black vs White",
+    grepl("Hispanic|Mexican|Latino|HWAA", x, ignore.case=TRUE) ~ "Hispanic/Latino",
+    grepl("Pakistani|Turkish|Iraqi|Iranian|Middle East|South|East|South-?East|Asian", x, ignore.case=TRUE) ~ "Asian & Middle-East",
+    grepl("Māori|Pacific|Aboriginal|American Indian|Indigenous|Torres|SHS", x, ignore.case=TRUE) ~ "Indigenous & Pacific",
+    TRUE ~ "Other"
+  )
+}
+
+# tag region groups from your 'region' string (lightweight)
+region_group <- function(x){
+  case_when(
+    grepl("USA|United States|Canada", x, TRUE) ~ "North America",
+    grepl("UK|United Kingdom|England|Denmark|Norway", x, TRUE) ~ "Europe",
+    grepl("Singapore|Qatar|Hamad|Doha|HGH", x, TRUE) ~ "Asia & Middle East",
+    grepl("New Zealand|Auckland|ARCOS|Australia|SAINTSS", x, TRUE) ~ "Oceania",
+    TRUE ~ "Other/Unclear"
+  )
+}
+
+df <- df %>%
+  mutate(
+    region_group = region_group(region),
+    block        = factor(block_map(comparison),
+                          levels = c("Black vs White","Hispanic/Latino",
+                                     "Asian & Middle-East","Indigenous & Pacific","Other"))
+  )
+
+# reported vs calculated (unique key prevents many-to-many)
+df <- df %>% mutate(key = paste(author_year, study, comparison, sep=" | "))
+reported_keys <- reported_keys %>% mutate(key = paste(author_year, study, comparison, sep=" | "))
+
+df <- df %>%
+  left_join(reported_keys %>% select(key, est_source), by="key") %>%
+  mutate(est_source = if_else(is.na(est_source), "calculated", est_source))
+
+# ---- Pool Black vs White (North America): GCNKSS, ARIC, NOMAS ----
+pool_keys <- tribble(
+  ~author_year,   ~study,         ~comparison,
+  "Madsen 2024",  "GCNKSS",       "Black vs White",
+  "Koton 2020",   "ARIC",         "Black vs White",
+  "Gardener 2020","NOMAS",        "Black vs White"
+) %>% mutate(key = paste(author_year, study, comparison, sep=" | "))
+
+# pick the three rows
+pool_df <- df %>%
+  mutate(key = paste(author_year, study, comparison, sep=" | ")) %>%
+  semi_join(pool_keys, by = "key")
+
+# log effects & SEs
+y  <- log(pool_df$effect)
+se <- (log(pool_df$hi) - log(pool_df$lo)) / (2*1.96)
+
+# fixed effect
+w  <- 1/se^2
+mu_fixed <- sum(w*y)/sum(w)
+
+# DerSimonian–Laird tau^2
+Q <- sum(w*(y - mu_fixed)^2)
+C <- sum(w) - sum(w^2)/sum(w)
+tau2 <- max(0, (Q - (length(y)-1))/C)
+
+# random-effects pooled
+w_star <- 1/(se^2 + tau2)
+mu_RE  <- sum(w_star*y)/sum(w_star)
+se_RE  <- sqrt(1/sum(w_star))
+
+pooled_effect <- exp(mu_RE)
+pooled_lo     <- exp(mu_RE - 1.96*se_RE)
+pooled_hi     <- exp(mu_RE + 1.96*se_RE)
+I2 <- max(0, (Q - (length(y)-1))/Q) * 100
+
+# append pooled row to df
+df <- bind_rows(
+  df,
+  tibble(
+    author_year = glue("Pooled (DL, I^2={round(I2) }%)"),
+    study       = "GCNKSS + ARIC + NOMAS",
+    region      = "USA – pooled",
+    comparison  = "Black vs White (pooled)",
+    effect      = pooled_effect,
+    lo          = pooled_lo,
+    hi          = pooled_hi,
+    rob         = "—",
+    est_source  = "pooled"   # we'll style this
+  )
+)
+
+# ---------- insert region headers & order within region by 'block' ----------
+headers <- df %>%
+  distinct(region_group) %>%
+  transmute(author_year = region_group,
+            study = "", region = "", comparison = "",
+            effect = NA_real_, lo = NA_real_, hi = NA_real_,
+            rob = "", est_source = NA_character_,
+            region_group, block = factor(NA, levels = levels(df$block)),
+            is_header = TRUE)
+
+df_plot <- df %>%
+  mutate(is_header = FALSE) %>%
+  arrange(region_group, block, author_year) %>%
+  bind_rows(headers) %>%
+  arrange(region_group, desc(is_header), block, author_year) %>%
+  mutate(y = rev(row_number()))
+
+# common text for right panel
+df_plot <- df_plot %>%
+  mutate(
+    est_ci = if_else(!is_header,
+                     glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})"),
+                     ""),
+    est_ci_tag = case_when(
+      is_header ~ "",
+      est_source == "reported"   ~ glue("{est_ci} [rep]"),
+      est_source == "calculated" ~ glue("{est_ci} [calc]"),
+      TRUE ~ ""
+    )
+  )
+
+# === LEFT panel (shows headers + rows) ===
+p_left <- ggplot(df_plot, aes(y=y)) +
+  geom_text(data = subset(df_plot, is_header),
+            aes(x=.02, label=region_group), hjust=0, size=3.6, fontface="bold")+
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x=.02, label=author_year), hjust=0, size=3.2)+
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x=.55, label=comparison),  hjust=0, size=3.2)+
+  labs(title="All-stroke incidence by ethnicity, grouped by world region",
+       subtitle="Left: Author/Comparison • Middle: Forest (log) • Right: RR (95% CI) & ROBINS-E")+
+  scale_x_continuous(limits=c(0,1), breaks=NULL)+
+  scale_y_continuous(NULL, breaks=NULL)+
+  theme_void(base_size=11) +
+  theme(plot.title=element_text(face="bold"), plot.subtitle=element_text(margin=margin(b=6)))
+
+# === MIDDLE panel (uses same y; light separators at headers) ===
+x_min <- 0.25; x_max <- 5.5
+df_mid <- df_plot %>% mutate(
+  lo_cap = pmax(lo, x_min),
+  hi_cap = pmin(hi, x_max),
+  left_overflow  = !is_header & lo < x_min,
+  right_overflow = !is_header & hi > x_max
+)
+
+p_mid <- ggplot(df_mid, aes(y=y)) +
+  geom_hline(data=subset(df_plot, is_header),
+             aes(yintercept=y), colour="grey85", linewidth=.4)+
+  geom_segment(data=subset(df_mid, !is_header),
+               aes(x=lo_cap, xend=hi_cap, yend=y, linetype=est_source),
+               linewidth=.5, colour="black") +
+  geom_segment(data=subset(df_mid, left_overflow),
+               aes(x=x_min, xend=lo_cap, yend=y, linetype=est_source),
+               arrow=arrow(length=unit(3,"pt"), type="closed"),
+               linewidth=.5, colour="black")+
+  geom_segment(data=subset(df_mid, right_overflow),
+               aes(x=hi_cap, xend=x_max, yend=y, linetype=est_source),
+               arrow=arrow(length=unit(3,"pt"), type="closed"),
+               linewidth=.5, colour="black")+
+  geom_point(data=subset(df_mid, !is_header),
+             aes(x=effect, shape=est_source), size=2.2, stroke=.6)+
+  geom_vline(xintercept=1, linetype="dashed", colour="grey50")+
+  scale_x_log10(limits=c(x_min,x_max),
+                breaks=c(0.25,0.5,0.75,1,1.5,2,3,5),
+                labels=scales::label_number(accuracy=0.01, trim=TRUE),
+                expand=c(0,0))+
+  scale_shape_manual(values=c(reported=16, calculated=1), labels=c("Reported","Calculated"))+
+  scale_linetype_manual(values=c(reported="solid", calculated="22"), labels=c("Reported","Calculated"))+
+  guides(linetype="none")+
+  coord_cartesian(clip="off")+
+  theme_minimal(base_size=11)+
+  theme(axis.title=element_blank(), axis.text.y=element_blank(), axis.ticks=element_blank(),
+        panel.grid.major.y=element_blank(), panel.grid.minor=element_blank(),
+        plot.margin=margin(5,0,5,0), legend.position="bottom")
+
+# === RIGHT panel (print blanks for headers so y matches exactly) ===
+p_right <- ggplot(df_plot, aes(y=y)) +
+  geom_text(data=subset(df_plot,  is_header),
+            aes(x=.02, label=""), hjust=0, size=3.2)+
+  geom_text(data=subset(df_plot, !is_header),
+            aes(x=.02, label=est_ci_tag), hjust=0, size=3.2)+
+  geom_text(data=subset(df_plot, !is_header),
+            aes(x=.70, label=rob),       hjust=0, size=3.2)+
+  scale_x_continuous(limits=c(0,1), breaks=NULL)+
+  scale_y_continuous(NULL, breaks=NULL)+
+  theme_void(base_size=11)
+
+final_plot <- p_left + p_mid + p_right +
+  patchwork::plot_layout(widths=c(0.9,1.1,0.6))
+final_plot
+
+
+
+
+
+=======
+reported_keys <- tribble(
+  ~author_year,       ~study,         ~comparison,                         ~est_source,
+  "Madsen 2024",      "GCNKSS",       "Black vs White",                    "reported",
+  "Gardener 2020",    "NOMAS",        "Black vs White",                    "reported",
+  "Domanski 2025",    "CARDIA (men)", "Black vs White (men)",              "reported",
+  "Domanski 2025",    "CARDIA (women)","Black vs White (women)",           "reported",
+  "Mkoma 2021",       "Denmark",      "Pakistani vs Danish-born",          "reported",
+  "Mkoma 2021",       "Denmark",      "Turkish vs Danish-born",            "reported",
+  "Mkoma 2021",       "Denmark",      "Iraqi vs Danish-born",              "reported",
+  "Mkoma 2021",       "Denmark",      "Iranian vs Danish-born",            "reported",
+  "Calancie 2024",    "WHI",          "HWAA vs NH White (women)",          "reported",
+  "Balabanski 2023",  "Australia",    "Aboriginal vs non-Aboriginal (women)","reported",
+  "Balabanski 2023",  "Australia",    "Aboriginal vs non-Aboriginal (men)","reported",
+  "Balabanski 2020",  "Australia",    "Aboriginal vs non-Aboriginal",      "reported",
+  "Balabanski 2018",  "Australia",    "Aboriginal vs non-Aboriginal",      "reported",
+  "Dos Santos 2024",  "SAINTSS",      "Aboriginal vs non-Indigenous",      "reported",
+  "Müller 2019",      "SHS + ARIC",   "American Indian vs White women",    "reported",
+  "Müller 2019",      "SHS + ARIC",   "American Indian vs Black women",    "reported",
+  "Müller 2019",      "SHS + ARIC",   "American Indian vs White men",      "reported",
+  "Müller 2019",      "SHS + ARIC",   "American Indian vs Black men",      "reported",
+  "Bonnechère 2023",  "UK Biobank",   "Black vs White",                    "reported"
+) %>%
+  mutate(key = paste(author_year, study, comparison, sep = " | ")) %>%
+  select(key, est_source) %>%
+  distinct()
+
+# 3) Join by the unique key (no more many-to-many)
+df_plot <- df %>%
+  left_join(reported_keys, by = "key") %>%
+  mutate(
+    est_source = if_else(is.na(est_source), "calculated", est_source),
+    y          = rev(row_number()),
+    est_ci     = glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})"),
+    est_ci_tag = if_else(est_source == "reported",
+                         glue("{est_ci} [rep]"),
+                         glue("{est_ci} [calc]"))
+  )
+
+  # --- 1) Tag each row with a region group (from your 'region' column) ---
+region_levels <- c("North America","Europe","Asia & Middle East","Oceania","Other/Unclear")
+
+df_plot <- df_plot %>%  # <- this is the object you already created after joining reported_keys
+  mutate(
+    region_group = case_when(
+      grepl("USA|United States|Canada", region, ignore.case = TRUE) ~ "North America",
+      grepl("UK|United Kingdom|England|Denmark|Norway", region, TRUE) ~ "Europe",
+      grepl("Singapore|Qatar|Hamad|Doha|HGH", region, TRUE) ~ "Asia & Middle East",
+      grepl("New Zealand|Auckland|ARCOS|Australia|SAINTSS", region, TRUE) ~ "Oceania",
+      TRUE ~ "Other/Unclear"
+    ),
+    region_group = factor(region_group, levels = region_levels)
+  )
+  
+# --- 2) Insert header rows per region and recompute y ---
+headers <- df_plot %>%
+  distinct(region_group) %>%
+  transmute(
+    author_year = as.character(region_group),
+    study = "", region = "", comparison = "",
+    effect = NA_real_, lo = NA_real_, hi = NA_real_,
+    rob = "", est_source = NA_character_,
+    region_group, is_header = TRUE
+  )
+
+df_plot <- bind_rows(df_plot %>% mutate(is_header = FALSE), headers) %>%
+  arrange(region_group, desc(is_header), author_year, comparison) %>%
+  mutate(y = rev(row_number()))
+
+# --- 3) LEFT panel (now shows region headers) ---
+p_left <- ggplot(df_plot, aes(y = y)) +
+  geom_text(data = subset(df_plot, is_header),
+            aes(x = 0.02, label = as.character(region_group)),
+            hjust = 0, size = 3.6, fontface = "bold") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.02, label = author_year),
+            hjust = 0, size = 3.2, colour = "black") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.55, label = comparison),
+            hjust = 0, size = 3.2, colour = "black") +
+  labs(
+    title   = "All-stroke incidence by ethnicity, grouped by world region",
+    subtitle= "Left: Author / Comparison • Middle: Forest (log) • Right: RR (95% CI) & ROBINS-E | ● reported, ○ calculated"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(margin = margin(b = 6)))
+
+# --- 4) MIDDLE panel (treat headers as blank separators) ---
+x_min <- 0.25; x_max <- 5.5
+df_mid <- df_plot %>%
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = !is_header & !is.na(lo) & lo < x_min,
+    right_overflow = !is_header & !is.na(hi) & hi > x_max
+  )
+
+p_mid <- ggplot(df_mid, aes(y = y)) +
+  geom_hline(data = subset(df_plot, is_header),
+             aes(yintercept = y), colour = "grey85", linewidth = 0.4) +
+  geom_segment(data = subset(df_mid, !is_header),
+               aes(x = lo_cap, xend = hi_cap, yend = y, linetype = est_source),
+               linewidth = 0.5, colour = "black") +
+  geom_segment(data = subset(df_mid, left_overflow),
+               aes(x = x_min, xend = lo_cap, yend = y, linetype = est_source),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.5, colour = "black") +
+  geom_segment(data = subset(df_mid, right_overflow),
+               aes(x = hi_cap, xend = x_max, yend = y, linetype = est_source),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.5, colour = "black") +
+  geom_point(data = subset(df_mid, !is_header),
+             aes(x = x, shape = est_source),
+             size = 2.2, colour = "black", stroke = 0.6) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(limits = c(x_min, x_max),
+                breaks = c(0.25,0.5,0.75,1,1.5,2,3,5),
+                labels = scales::label_number(accuracy = 0.01, trim = TRUE),
+                expand = c(0,0)) +
+  scale_shape_manual(values = c(reported = 16, calculated = 1),
+                     labels = c("Reported","Calculated"), name = "Estimate source") +
+  scale_linetype_manual(values = c(reported = "solid", calculated = "22"),
+                        labels = c("Reported","Calculated"), name = "Estimate source") +
+  guides(linetype = "none") +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks  = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor   = element_blank(),
+        plot.margin = margin(5, 0, 5, 0),
+        legend.position = "bottom")
+
+# --- 5) RIGHT panel (blank on headers) ---
+p_right <- ggplot(df_plot, aes(y = y)) +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.02, label = est_ci_tag),
+            hjust = 0, size = 3.2, colour = "black") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.70, label = rob),
+            hjust = 0, size = 3.2, colour = "black") +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+# --- 6) Combine ---
+final_plot <- p_left + p_mid + p_right +
+  patchwork::plot_layout(widths = c(0.9, 1.1, 0.6))
+final_plot
+
+
+
+
+===== Lets seeeeee
+
+# ================================================================
+# Forest plot by world region + pooled Black vs White (North America)
+# ================================================================
+
+# Packages
+library(tidyverse)
+library(glue)
+library(patchwork)
+library(grid)      # for unit()
+library(scales)
+
+# -------------------------------
+# DATA (All-stroke; adjust as needed)
+# -------------------------------
+df <- tribble(
+  ~author_year,        ~study,            ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
+  # North America — Black vs White
+  "Madsen 2024",       "GCNKSS",          "USA – 5 counties",                "Black vs White",                               1.83,   1.63, 2.02,  "High",
+  "Koton 2020",        "ARIC",            "USA – 4 communities",             "Black vs White",                               1.85,   1.65, 2.06,  "Some concerns",
+  "Gardener 2020",     "NOMAS",           "USA – Northern Manhattan",        "Black vs White",                               1.33,   0.99, 1.79,  "Some concerns",
+
+  # North America — Hispanic/Latino
+  "Gardener 2020",     "NOMAS",           "USA – Northern Manhattan",        "Hispanic vs White",                            1.08,   0.78, 1.49,  "Some concerns",
+  "Calancie 2024",     "WHI",             "USA – women only",                "HWAA vs NH White (women)",                     0.65,   0.46, 0.92,  "Some concerns",
+
+  # North America — American Indian / Alaska Native
+  "Müller 2019",       "SHS + ARIC",      "USA – pooled cohorts",            "American Indian vs White women",               1.48,   0.89, 2.46,  "High",
+  "Müller 2019",       "SHS + ARIC",      "USA – pooled cohorts",            "American Indian vs Black women",               0.82,   0.52, 1.28,  "High",
+  "Müller 2019",       "SHS + ARIC",      "USA – pooled cohorts",            "American Indian vs White men",                 0.75,   0.42, 1.33,  "High",
+  "Müller 2019",       "SHS + ARIC",      "USA – pooled cohorts",            "American Indian vs Black men",                 0.42,   0.24, 0.74,  "High",
+
+  # Europe — Black vs White (plus UK Biobank)
+  "Rabanal 2015",      "CVDNOR (men)",    "Norway – nationwide",             "Sub-Saharan Africa vs Norway (men)",           1.29,   1.07, 1.56,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)",  "Norway – nationwide",             "Sub-Saharan Africa vs Norway (women)",         0.72,   0.48, 1.08,  "Very high",
+  "Bonnechère 2023",   "UK Biobank",      "UK – population-based",           "Black vs White",                               1.53,   1.17, 2.01,  "High",
+
+  # Europe — Asian & Middle-East
+  "Ramadan 2018",      "Bradford",        "UK – Bradford",                   "Pakistani vs White",                           1.53,   1.21, 1.94,  "Very high",
+  "Mkoma 2021",        "Denmark",         "Denmark – nationwide",            "Pakistani vs Danish-born",                     2.12,   1.96, 2.28,  "Some concerns",
+  "Mkoma 2021",        "Denmark",         "Denmark – nationwide",            "Turkish vs Danish-born",                       1.07,   0.93, 1.21,  "Some concerns",
+  "Mkoma 2021",        "Denmark",         "Denmark – nationwide",            "Iraqi vs Danish-born",                         1.46,   1.29, 1.64,  "Some concerns",
+  "Mkoma 2021",        "Denmark",         "Denmark – nationwide",            "Iranian vs Danish-born",                       1.53,   1.34, 1.73,  "Some concerns",
+  "Rabanal 2015",      "CVDNOR (men)",    "Norway – nationwide",             "Middle East vs Norway (men)",                  0.40,   0.33, 0.47,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)",  "Norway – nationwide",             "Middle East vs Norway (women)",                0.41,   0.31, 0.55,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",    "Norway – nationwide",             "South Asia vs Norway (men)",                   0.77,   0.67, 0.88,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)",  "Norway – nationwide",             "South Asia vs Norway (women)",                 0.88,   0.73, 1.05,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",    "Norway – nationwide",             "South-East Asia vs Norway (men)",              0.55,   0.44, 0.69,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)",  "Norway – nationwide",             "South-East Asia vs Norway (women)",            0.67,   0.56, 0.79,  "Very high",
+  "Rabanal 2015",      "CVDNOR (men)",    "Norway – nationwide",             "East Asia vs Norway (men)",                    0.52,   0.37, 0.74,  "Very high",
+  "Rabanal 2015",      "CVDNOR (women)",  "Norway – nationwide",             "East Asia vs Norway (women)",                  0.36,   0.22, 0.58,  "Very high",
+
+  # Oceania — Indigenous & Pacific
+  "Balabanski 2023",   "Australia",       "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (women)",         3.20,   2.40, 4.40,  "High",
+  "Balabanski 2023",   "Australia",       "Australia – WA/SA/NT",            "Aboriginal vs non-Aboriginal (men)",           2.60,   2.00, 3.50,  "High",
+  "Balabanski 2020",   "Australia",       "Australia – Central NT (regional)","Aboriginal vs non-Aboriginal",                 3.00,   2.00, 4.00,  "Very high",
+  "Balabanski 2018",   "Australia",       "Australia – SA (regional, pilot)","Aboriginal vs non-Aboriginal",                 1.70,   1.30, 2.30,  "Very high",
+  "Dos Santos 2024",   "SAINTSS",         "Australia – SA & NT (pilot)",     "Aboriginal vs non-Indigenous",                 2.90,   2.00, 4.00,  "Very high",
+  "Krishnamurthi 2018","ARCOS IV",        "New Zealand – Auckland",          "Pacific vs European",                          1.61,   1.39, 1.87,  "High",
+  "Feigin 2025",       "ARCOS V",         "New Zealand – Auckland",          "Māori vs NZ European",                         1.38,   1.10, 1.60,  "High",
+  "Feigin 2025",       "ARCOS V",         "New Zealand – Auckland",          "Asian/Other vs NZ European",                   1.05,   0.90, 1.20,  "High"
+)
+
+
+## Lets seee # 2
+
+# ================== Packages ==================
+library(tidyverse)
+library(glue)
+library(patchwork)
+library(grid)      # unit()
+library(scales)
+library(stringr)
+
+# ================== DATA (All-stroke) ==================
+df <- tribble(
+  ~author_year, ~study,           ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
+
+  # -------- North America — Black vs White --------
+  "Madsen 2024",  "GCNKSS",       "USA – 5 counties",                "Black vs White",                               1.83,   1.63, 2.02,  "High",
+  "Koton 2020",   "ARIC",         "USA – 4 communities",             "Black vs White",                               1.85,   1.65, 2.06,  "Some concerns",
+  "Gardener 2020","NOMAS",        "USA – Northern Manhattan",        "Black vs White",                               1.33,   0.99, 1.79,  "Some concerns",
+  # Domanski sex-stratified
+  "Domanski 2025","CARDIA (men)",   "USA – 4 cities",                "Black vs White (men)",                         5.00,   1.45, 17.30, "Some concerns",
+  "Domanski 2025","CARDIA (women)", "USA – 4 cities",                "Black vs White (women)",                       2.80,   1.01,  7.77, "Some concerns",
+  # WHI – Non-Hispanic Black vs Non-Hispanic White (women)
+  "Calancie 2024","WHI",           "USA – women only",                "NHAA vs NH White",                             1.04, 0.87, 1.24,     "High",
+
+  # -------- North America — Hispanic/Latino --------
+  "Gardener 2020","NOMAS",        "USA – Northern Manhattan",        "Hispanic vs White",                            1.08,   0.78, 1.49,  "Some concerns",
+  # WHI: keeping HWAA vs NH White (women) = 0.65, per your figure
+  "Calancie 2024","WHI",          "USA – women only",                "HWAA vs NH White (women)",                     0.65,   0.46, 0.92,  "Some concerns",
+
+  # -------- North America — American Indian / Alaska Native --------
+  "Müller 2019",  "SHS + ARIC",   "USA – pooled cohorts",            "American Indian vs White women",               1.48,   0.89, 2.46,  "High",
+  "Müller 2019",  "SHS + ARIC",   "USA – pooled cohorts",            "American Indian vs Black women",               0.82,   0.52, 1.28,  "High",
+  "Müller 2019",  "SHS + ARIC",   "USA – pooled cohorts",            "American Indian vs White men",                 0.75,   0.42, 1.33,  "High",
+  "Müller 2019",  "SHS + ARIC",   "USA – pooled cohorts",            "American Indian vs Black men",                 0.42,   0.24, 0.74,  "High",
+
+  # -------- Europe — Black vs White (incl. UK Biobank) --------
+  "Rabanal 2015", "CVDNOR (men)",   "Norway – nationwide",           "Sub-Saharan Africa vs Norway (men)",           1.29,   1.07, 1.56,  "Very high",
+  "Rabanal 2015", "CVDNOR (women)", "Norway – nationwide",           "Sub-Saharan Africa vs Norway (women)",         0.72,   0.48, 1.08,  "Very high",
+  "Bonnechère 2023","UK Biobank",  "UK – population-based",          "Black vs White",                               1.53,   1.17, 2.01,  "High",
+
+# -------- Europe — Latin America / Hospanic vs White --------
+  "Rabanal 2015","CVDNOR (men)",   "Norway – nationwide","Central America vs Norway (men)",   0.72, 0.24, 2.18, "Very high",
+  "Rabanal 2015","CVDNOR (women)", "Norway – nationwide","Central America vs Norway (women)", 1.57, 0.65, 3.79, "Very high",
+  "Rabanal 2015","CVDNOR (men)",   "Norway – nationwide","South America vs Norway (men)",     0.94, 0.68, 1.31, "Very high",
+  "Rabanal 2015","CVDNOR (women)", "Norway – nationwide","South America vs Norway (women)",   0.99, 0.68, 1.44, "Very high",
+ 
+  # -------- Europe — Asian & Middle-East --------
+  "Bonnechère 2023","UK Biobank",  "UK – population-based",          "Asian vs White",                               0.97,   0.74, 1.28,  "High",
+  "Ramadan 2018", "Bradford",     "UK – Bradford",                   "Pakistani vs White",                           1.53,   1.21, 1.94,  "Very high",
+  "Mkoma 2021",   "Denmark",      "Denmark – nationwide",            "Pakistani vs Danish-born",                     2.12,   1.96, 2.28,  "Some concerns",
+  "Mkoma 2021",   "Denmark",      "Denmark – nationwide",            "Turkish vs Danish-born",                       1.07,   0.93, 1.21,  "Some concerns",
+  "Mkoma 2021",   "Denmark",      "Denmark – nationwide",            "Iraqi vs Danish-born",                         1.46,   1.29, 1.64,  "Some concerns",
+  "Mkoma 2021",   "Denmark",      "Denmark – nationwide",            "Iranian vs Danish-born",                       1.53,   1.34, 1.73,  "Some concerns",
+  "Rabanal 2015", "CVDNOR (men)",   "Norway – nationwide",           "Middle East vs Norway (men)",                  0.40,   0.33, 0.47,  "Very high",
+  "Rabanal 2015", "CVDNOR (women)", "Norway – nationwide",           "Middle East vs Norway (women)",                0.41,   0.31, 0.55,  "Very high",
+  "Rabanal 2015", "CVDNOR (men)",   "Norway – nationwide",           "South Asia vs Norway (men)",                   0.77,   0.67, 0.88,  "Very high",
+  "Rabanal 2015", "CVDNOR (women)", "Norway – nationwide",           "South Asia vs Norway (women)",                 0.88,   0.73, 1.05,  "Very high",
+  "Rabanal 2015", "CVDNOR (men)",   "Norway – nationwide",           "South-East Asia vs Norway (men)",              0.55,   0.44, 0.69,  "Very high",
+  "Rabanal 2015", "CVDNOR (women)", "Norway – nationwide",           "South-East Asia vs Norway (women)",            0.67,   0.56, 0.79,  "Very high",
+  "Rabanal 2015", "CVDNOR (men)",   "Norway – nationwide",           "East Asia vs Norway (men)",                    0.52,   0.37, 0.74,  "Very high",
+  "Rabanal 2015", "CVDNOR (women)", "Norway – nationwide",           "East Asia vs Norway (women)",                  0.36,   0.22, 0.58,  "Very high",
+
+  # -------- Oceania — Indigenous & Pacific --------
+  "Feigin 2025",   "ARCOS V",      "New Zealand – Auckland",         "Asian/Other vs NZ European",                   1.05,   0.90, 1.20,  "High",
+  "Balabanski 2023","Australia",   "Australia – WA/SA/NT",           "Aboriginal vs non-Aboriginal (women)",         3.20,   2.40, 4.40,  "High",
+  "Balabanski 2023","Australia",   "Australia – WA/SA/NT",           "Aboriginal vs non-Aboriginal (men)",           2.60,   2.00, 3.50,  "High",
+  "Balabanski 2020","Australia",   "Australia – Central NT (regional)","Aboriginal vs non-Aboriginal",                3.00,   2.00, 4.00,  "Very high",
+  "Balabanski 2018","Australia",   "Australia – SA (regional, pilot)","Aboriginal vs non-Aboriginal",                 1.70,   1.30, 2.30,  "Very high",
+  "Dos Santos 2024","SAINTSS",     "Australia – SA & NT (pilot)",    "Aboriginal vs non-Indigenous",                 2.90,   2.00, 4.00,  "Very high",
+  "Krishnamurthi 2018","ARCOS IV", "New Zealand – Auckland",         "Pacific vs European",                          1.61,   1.39, 1.87,  "High",
+  "Feigin 2025",   "ARCOS V",      "New Zealand – Auckland",         "Māori vs NZ European",                         1.38,   1.10, 1.60,  "High",
+)
+
+# Unique key (used everywhere)
+df <- df %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+# ================== Mark "reported" vs "calculated" ==================
+library(dplyr)
+library(stringr)
+
+# 0) Ensure df has the same key format used for joining
+df <- df %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+# 1) Build the reported map ONLY for genuinely reported estimates
+reported_keys <- tribble(
+  ~author_year, ~study,        ~comparison,
+  "Madsen 2024","GCNKSS",      "Black vs White",
+  # If you want Koton to appear as CALCULATED, comment the next line out:
+  # "Koton 2020","ARIC",         "Black vs White",
+  "Gardener 2020","NOMAS",     "Black vs White",
+  "Gardener 2020","NOMAS",     "Hispanic vs White",
+  # Add WHI Black vs White (NHAA vs NHW) if you included it in df:
+  "Calancie 2024","WHI",       "NHAA vs NHW (women)",
+  "Calancie 2024","WHI",       "HWAA vs NH White (women)",
+  "Müller 2019","SHS + ARIC",  "American Indian vs White women",
+  "Müller 2019","SHS + ARIC",  "American Indian vs Black women",
+  "Müller 2019","SHS + ARIC",  "American Indian vs White men",
+  "Müller 2019","SHS + ARIC",  "American Indian vs Black men",
+  "Ramadan 2018","Bradford",   "Pakistani vs White",
+  "Mkoma 2021","Denmark",      "Pakistani vs Danish-born",
+  "Mkoma 2021","Denmark",      "Turkish vs Danish-born",
+  "Mkoma 2021","Denmark",      "Iraqi vs Danish-born",
+  "Mkoma 2021","Denmark",      "Iranian vs Danish-born",
+  "Rabanal 2015","CVDNOR (men)","Middle East vs Norway (men)",
+  "Rabanal 2015","CVDNOR (women)","Middle East vs Norway (women)",
+  "Rabanal 2015","CVDNOR (men)","South Asia vs Norway (men)",
+  "Rabanal 2015","CVDNOR (women)","South Asia vs Norway (women)",
+  "Rabanal 2015","CVDNOR (men)","South-East Asia vs Norway (men)",
+  "Rabanal 2015","CVDNOR (women)","South-East Asia vs Norway (women)",
+  "Rabanal 2015","CVDNOR (men)","East Asia vs Norway (men)",
+  "Rabanal 2015","CVDNOR (women)","East Asia vs Norway (women)",
+  "Rabanal 2015","CVDNOR (men)","Sub-Saharan Africa vs Norway (men)",
+  "Rabanal 2015","CVDNOR (women)","Sub-Saharan Africa vs Norway (women)",
+  "Balabanski 2023","Australia","Aboriginal vs non-Aboriginal (women)",
+  "Balabanski 2023","Australia","Aboriginal vs non-Aboriginal (men)",
+  "Balabanski 2020","Australia","Aboriginal vs non-Aboriginal",
+  "Balabanski 2018","Australia","Aboriginal vs non-Aboriginal",
+  "Dos Santos 2024","SAINTSS", "Aboriginal vs non-Indigenous",
+  "Krishnamurthi 2018","ARCOS IV","Pacific vs European",
+  "Feigin 2025","ARCOS V",     "Māori vs NZ European",
+  "Bonnechère 2023","UK Biobank","Black vs White",
+  # If you want UK Biobank Asian vs White to appear as REPORTED, include:
+  "Bonnechère 2023","UK Biobank","Asian vs White"
+) %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | "))) %>%
+  distinct(key) %>%
+  mutate(est_source_reported = "reported")
+
+# 2) Join and tag
+df <- df %>%
+  left_join(reported_keys, by = "key") %>%
+  mutate(
+    est_source = case_when(
+      str_detect(comparison, "\\(pooled\\)") ~ "pooled",
+      !is.na(est_source_reported)            ~ "reported",
+      TRUE                                   ~ "calculated"
+    )
+  ) %>%
+  select(-est_source_reported)
+
+# (Optional) Quick sanity check:
+df %>% count(est_source)
+
+df <- bind_rows(
+  df,
+  tibble(
+    author_year = "Calancie 2024",
+    study       = "WHI",
+    region      = "USA – women only",
+    comparison  = "NHAA vs NHW (women)",   # keep EXACT text in reported_keys
+    effect      = 1.04,
+    lo          = 0.87,
+    hi          = 1.24,
+    rob         = "High"
+  )
+) %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+# ================== Random-effects pooled row (NA Black vs White) ==================
+# --- SAFER pool_keys (mirror df$key creation) ---
+pool_keys <- c(
+  paste("Madsen 2024","GCNKSS","Black vs White", sep=" | "),
+  paste("Koton 2020","ARIC","Black vs White", sep=" | "),
+  paste("Gardener 2020","NOMAS","Black vs White", sep=" | ")
+) %>% stringr::str_squish()
+
+pool_df <- df %>% dplyr::filter(key %in% pool_keys)
+
+pool_df <- df %>% filter(key %in% pool_keys)
+y  <- log(pool_df$effect)
+se <- (log(pool_df$hi) - log(pool_df$lo)) / (2*1.96)
+w  <- 1/se^2
+mu_fixed <- sum(w*y)/sum(w)
+Q <- sum(w*(y - mu_fixed)^2)
+C <- sum(w) - sum(w^2)/sum(w)
+tau2 <- max(0, (Q - (length(y)-1))/C)
+w_star <- 1/(se^2 + tau2)
+mu_RE  <- sum(w_star*y)/sum(w_star)
+se_RE  <- sqrt(1/sum(w_star))
+pooled_effect <- exp(mu_RE)
+pooled_lo     <- exp(mu_RE - 1.96*se_RE)
+pooled_hi     <- exp(mu_RE + 1.96*se_RE)
+I2 <- max(0, (Q - (length(y)-1))/Q) * 100
+
+pooled_row <- tibble(
+  author_year = glue("Pooled (DL, I^2={round(I2)}%)"),
+  study       = "GCNKSS + ARIC + NOMAS",
+  region      = "USA – pooled",
+  comparison  = "Black vs White (pooled)",
+  effect      = pooled_effect, lo = pooled_lo, hi = pooled_hi,
+  rob         = "—",
+  key         = "POOLED_NA_BvW",
+  est_source  = "pooled"
+)
+
+df <- bind_rows(df, pooled_row) %>%
+  distinct(key, .keep_all = TRUE)   # <- prevents duplicate pooled lines if re-run
+
+# ================== Region grouping & within-region order ==================
+region_map <- tribble(
+  ~pattern,                                     ~region_group,
+  "USA|United States|WHI|SHS|ARIC|NOMAS|GCNKSS|pooled", "North America",
+  "UK|United Kingdom|Bradford|Denmark|Norway|Biobank",  "Europe",
+  "Singapore|Qatar|Hamad|Doha|HGH",                     "Asia & Middle East",
+  "New Zealand|Auckland|ARCOS|Australia|SAINTSS",       "Oceania"
+)
+
+detect_region <- function(x) {
+  out <- rep(NA_character_, length(x))
+  for (i in seq_len(nrow(region_map))) {
+    out[grepl(region_map$pattern[i], x, ignore.case = TRUE)] <- region_map$region_group[i]
+  }
+  out
+}
+
+df <- df %>%
+  mutate(region_group = coalesce(detect_region(region), detect_region(study), "Other/Unclear"))
+
+# headers
+make_headers <- df %>%
+  distinct(region_group) %>%
+  mutate(author_year = region_group, study = "", region = "", comparison = "",
+         effect = NA_real_, lo = NA_real_, hi = NA_real_, rob = "",
+         key = paste0("HEADER_", region_group),
+         est_source = NA_character_, is_header = TRUE)
+
+cmp_order <- c(
+  "Black vs White (pooled)", "Black vs White", "NHAA vs NHW (women)",
+  "Hispanic vs White", "HWAA vs NH White (women)",
+  "Pakistani vs White", "Pakistani vs Danish-born", "Turkish vs Danish-born",
+  "Iraqi vs Danish-born", "Iranian vs Danish-born",
+  "Middle East vs Norway (men)", "Middle East vs Norway (women)",
+  "South Asia vs Norway (men)", "South Asia vs Norway (women)",
+  "South-East Asia vs Norway (men)", "South-East Asia vs Norway (women)",
+  "East Asia vs Norway (men)", "East Asia vs Norway (women)",
+  "Aboriginal vs non-Aboriginal (women)", "Aboriginal vs non-Aboriginal (men)",
+  "Aboriginal vs non-Aboriginal", "Aboriginal vs non-Indigenous",
+  "Māori vs NZ European", "Pacific vs European", "Pacific vs NZ European",
+  "Asian/Other vs NZ European"
+)
+
+df_plot <- bind_rows(df %>% mutate(is_header = FALSE), make_headers) %>%
+  arrange(region_group, desc(is_header)) %>%
+  mutate(
+    cmp_key = if_else(is_header, paste0("0_", region_group), comparison),
+    cmp_key = factor(cmp_key, levels = c(paste0("0_", unique(region_group)), cmp_order), ordered = TRUE)
+  ) %>%
+  arrange(region_group, desc(is_header), cmp_key, author_year) %>%
+  mutate(
+    y = rev(row_number()),
+    est_ci = if_else(is_header, "",
+                     glue("{sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")),
+    est_ci_tag = case_when(
+      is_header ~ "",
+      est_source == "reported"   ~ glue("{est_ci} [rep]"),
+      est_source == "calculated" ~ glue("{est_ci} [calc]"),
+      est_source == "pooled"     ~ glue("{est_ci} [pooled]"),
+      TRUE ~ ""
+    )
+  )
+
+# ================== Plot panels ==================
+# LEFT
+p_left <- ggplot(df_plot, aes(y = y)) +
+  geom_text(data = subset(df_plot, is_header),
+            aes(x = 0.02, label = region_group),
+            hjust = 0, size = 3.7, fontface = "bold") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.02, label = author_year),
+            hjust = 0, size = 3.2, colour = "black") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.55, label = comparison),
+            hjust = 0, size = 3.2, colour = "black") +
+  labs(
+    title   = "All-stroke incidence by ethnicity, grouped by world region",
+    subtitle= "Left: Author / Comparison • Middle: Forest (log-scale) • Right: RR (95% CI) & ROBINS-E\nSymbols: ● reported, ○ calculated, □ pooled (random-effects)"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(plot.title = element_text(face = "bold"),
+        plot.subtitle = element_text(margin = margin(b = 6)))
+
+# MIDDLE
+x_min <- 0.25; x_max <- 5.0
+df_mid <- df_plot %>%
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = !is_header & lo < x_min,
+    right_overflow = !is_header & hi > x_max
+  )
+
+p_mid <- ggplot(df_mid, aes(y = y)) +
+  geom_hline(data = subset(df_plot, is_header),
+             aes(yintercept = y), colour = "grey85", linewidth = 0.4) +
+  geom_segment(data = subset(df_mid, !is_header),
+               aes(x = lo_cap, xend = hi_cap, yend = y,
+                   linetype = if_else(est_source=="calculated","calculated","reported")),
+               linewidth = 0.5, colour = "black") +
+  geom_segment(data = subset(df_mid, left_overflow),
+               aes(x = x_min, xend = lo_cap, yend = y,
+                   linetype = if_else(est_source=="calculated","calculated","reported")),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.5, colour = "black") +
+  geom_segment(data = subset(df_mid, right_overflow),
+               aes(x = hi_cap, xend = x_max, yend = y,
+                   linetype = if_else(est_source=="calculated","calculated","reported")),
+               arrow = arrow(length = unit(3, "pt"), type = "closed"),
+               linewidth = 0.5, colour = "black") +
+  geom_point(data = subset(df_mid, !is_header & est_source=="reported"),
+             aes(x = x), shape = 16, size = 2.2, colour = "black", stroke = 0.6) +
+  geom_point(data = subset(df_mid, !is_header & est_source=="calculated"),
+             aes(x = x), shape = 1,  size = 2.2, colour = "black", stroke = 0.6) +
+  geom_point(data = subset(df_mid, !is_header & est_source=="pooled"),
+             aes(x = x), shape = 0,  size = 2.6, colour = "black", stroke = 0.8, fill = NA) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(limits = c(x_min, x_max),
+                breaks = c(0.25,0.5,0.75,1,1.5,2,3,5),
+                labels = label_number(accuracy = 0.01, trim = TRUE),
+                expand = c(0,0)) +
+  scale_linetype_manual(values = c(reported = "solid", calculated = "22")) +
+  guides(linetype = "none") +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(axis.title = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks  = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.grid.minor   = element_blank(),
+        plot.margin = margin(5, 0, 5, 0))
+
+# RIGHT
+p_right <- ggplot(df_plot, aes(y = y)) +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.02, label = est_ci_tag),
+            hjust = 0, size = 3.2, colour = "black") +
+  geom_text(data = subset(df_plot, !is_header),
+            aes(x = 0.70, label = rob),
+            hjust = 0, size = 3.2, colour = "black") +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+# Combine
+final_plot <- p_left + p_mid + p_right +
+  plot_layout(widths = c(1.05, 1.1, 0.75))
+final_plot
+
+============
+# New version
+============
+
