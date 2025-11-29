@@ -1,0 +1,895 @@
+## North America
+
+## ===================== 0. Packages =====================
+library(dplyr)
+library(stringr)
+library(glue)
+library(ggplot2)
+library(patchwork)
+library(tibble)
+library(scales)
+
+## ===================== 1. North America data =====================
+
+df_na <- tribble(
+  ~subgroup,                         ~author_year,   ~study,           ~region,                           ~comparison,                                   ~effect, ~lo,   ~hi,   ~rob,
+  # -------- Black vs White --------
+  "Black vs White",                  "Gardener 2020","NOMAS",          "USA, Northern Manhattan (NOMAS)", "Black vs White",                               1.33,   0.99, 1.79, "Some concerns",
+  "Black vs White",                  "Koton 2020",   "ARIC",           "USA (ARIC: NC, MS, MN, MD)",      "Black vs White",                               1.85,   1.65, 2.06, "Some concerns",
+  "Black vs White",                  "Madsen 2024",  "GCNKSS",         "USA (Greater Cincinnati / N. Kentucky, 5 counties)",
+                                                                                                          "Black vs White",                               1.83,   1.63, 2.02, "Some concerns",
+  "Black vs White",                  "Calancie 2024","WHI",            "USA (WHI; 40 centres; 77 247 women)",
+                                                                                                          "NH African American vs NH White (women)",      1.04,   0.87, 1.24, "High",
+  "Black vs White",                  "Domanski 2025","CARDIA (women)", "USA (4 cities)",                  "Black vs White (women)",                       2.80,   1.01, 7.77, "High",
+  "Black vs White",                  "Domanski 2025","CARDIA (men)",   "USA (4 cities)",                  "Black vs White (men)",                         5.00,   1.45,17.30, "High",
+
+  # -------- Latin American / Hispanic vs White --------
+  "Latin American / Hispanic vs White", "Gardener 2020","NOMAS",       "USA, Northern Manhattan (NOMAS)", "Hispanic vs White",                            1.08,   0.78, 1.49, "Some concerns",
+  "Latin American / Hispanic vs White", "Calancie 2024","WHI",         "USA (WHI; 40 centres)",           "HWAA vs NH White (women)",                     0.65,   0.46, 0.92, "High",
+
+  # -------- Indigenous vs White --------
+  "Indigenous vs White",              "Müller 2019",  "SHS + ARIC",    "USA (SHS + ARIC pooled)",         "American Indian vs Black women",               0.82,   0.52, 1.28, "Some concerns",
+  "Indigenous vs White",              "Müller 2019",  "SHS + ARIC",    "USA (SHS + ARIC pooled)",         "American Indian vs White women",               1.48,   0.89, 2.46, "Some concerns",
+  "Indigenous vs White",              "Müller 2019",  "SHS + ARIC",    "USA (SHS + ARIC pooled)",         "American Indian vs Black men",                 0.42,   0.24, 0.74, "Some concerns",
+  "Indigenous vs White",              "Müller 2019",  "SHS + ARIC",    "USA (SHS + ARIC pooled)",         "American Indian vs White men",                 0.75,   0.42, 1.33, "Some concerns"
+)
+
+# Unique key
+df_na <- df_na %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+## ===================== 2. Measure (HR vs IRR) & est_source =====================
+
+df_na <- df_na %>%
+  mutate(
+    # All HR except GCNKSS Black vs White (IRR)
+    measure = case_when(
+      author_year == "Madsen 2024" & study == "GCNKSS" & comparison == "Black vs White" ~ "IRR",
+      TRUE ~ "HR"
+    ),
+    # Only ARIC Black vs White is calculated; others reported
+    est_source = case_when(
+      author_year == "Koton 2020" & study == "ARIC" & comparison == "Black vs White" ~ "calculated",
+      TRUE ~ "reported"
+    )
+  )
+
+## ===================== 3. HR-only pooled estimate (NOMAS + ARIC, Black vs White) =====================
+
+pool_df <- df_na %>%
+  filter(
+    subgroup   == "Black vs White",
+    study      %in% c("NOMAS", "ARIC"),
+    comparison == "Black vs White"
+  )
+
+y  <- log(pool_df$effect)
+se <- (log(pool_df$hi) - log(pool_df$lo)) / (2 * 1.96)
+w  <- 1 / se^2
+mu_fixed <- sum(w * y) / sum(w)
+
+Q <- sum(w * (y - mu_fixed)^2)
+C <- sum(w) - sum(w^2) / sum(w)
+tau2 <- max(0, (Q - (length(y) - 1)) / C)
+
+w_star <- 1 / (se^2 + tau2)
+mu_RE  <- sum(w_star * y) / sum(w_star)
+se_RE  <- sqrt(1 / sum(w_star))
+
+pooled_effect <- exp(mu_RE)
+pooled_lo     <- exp(mu_RE - 1.96 * se_RE)
+pooled_hi     <- exp(mu_RE + 1.96 * se_RE)
+I2 <- max(0, (Q - (length(y) - 1)) / Q) * 100
+
+pooled_row <- tibble(
+  subgroup    = "Black vs White",
+  author_year = glue("Pooled HR (DL, I^2={round(I2)}%)"),
+  study       = "NOMAS + ARIC",
+  region      = "USA – pooled HR",
+  comparison  = "Black vs White (pooled HR)",
+  effect      = pooled_effect,
+  lo          = pooled_lo,
+  hi          = pooled_hi,
+  rob         = "—",
+  key         = "POOLED_US_HR_BvW",
+  est_source  = "pooled",
+  measure     = "HR"
+)
+
+df_na <- bind_rows(df_na, pooled_row) %>%
+  distinct(key, .keep_all = TRUE)
+
+## ===================== 4. Subgroup headers & ordering =====================
+
+# Subgroup headers
+make_headers <- df_na %>%
+  distinct(subgroup) %>%
+  mutate(
+    author_year = subgroup,
+    study       = "",
+    region      = "",
+    comparison  = "",
+    effect      = NA_real_,
+    lo          = NA_real_,
+    hi          = NA_real_,
+    rob         = "",
+    key         = paste0("HEADER_", subgroup),
+    est_source  = NA_character_,
+    measure     = "",
+    is_header   = TRUE
+  )
+
+# Study-level rows
+df_na2 <- df_na %>%
+  mutate(is_header = FALSE)
+
+# Comparison ordering within subgroups (you can tweak this)
+cmp_order <- c(
+  "Black vs White (pooled HR)", "Black vs White",
+  "NH African American vs NH White (women)",
+  "Black vs White (women)", "Black vs White (men)",
+  "Hispanic vs White", "HWAA vs NH White (women)",
+  "American Indian vs White women", "American Indian vs Black women",
+  "American Indian vs White men",   "American Indian vs Black men"
+)
+
+## ===================== 5. Build df_plot =====================
+
+df_plot <- bind_rows(df_na2, make_headers) %>%
+  arrange(subgroup, desc(is_header)) %>%
+  mutate(
+    cmp_key = if_else(is_header, paste0("0_", subgroup), comparison),
+    cmp_key = factor(cmp_key,
+                     levels = c(paste0("0_", unique(subgroup)), cmp_order),
+                     ordered = TRUE)
+  ) %>%
+  arrange(subgroup, desc(is_header), cmp_key, author_year) %>%
+  mutate(
+    y = rev(row_number()),
+    est_ci = if_else(
+      is_header,
+      "",
+      glue("{measure} {sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")
+    ),
+    est_ci_tag = case_when(
+      is_header                  ~ "",
+      est_source == "reported"   ~ glue("{est_ci} [rep]"),
+      est_source == "calculated" ~ glue("{est_ci} [calc]"),
+      est_source == "pooled"     ~ glue("{est_ci} [pooled]"),
+      TRUE ~ ""
+    ),
+    measure_label = if_else(is_header, "", measure)
+  )
+
+## ===================== 6. Middle-panel helpers (shapes & truncation) =====================
+
+x_min <- 0.25
+x_max <- 5.0
+
+df_mid <- df_plot %>%
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = !is_header & lo < x_min,
+    right_overflow = !is_header & hi > x_max,
+    shape_group = if_else(
+      is_header, NA_character_,
+      paste(measure, est_source, sep = ".")
+    ),
+    shape_group = factor(
+      shape_group,
+      levels = c("HR.reported", "HR.calculated", "HR.pooled",
+                 "IRR.reported", "IRR.calculated")
+    )
+  )
+
+## ===================== 7. Panels =====================
+
+# LEFT PANEL (author + comparison)
+p_left_na <- ggplot(df_plot, aes(y = y)) +
+  geom_text(
+    data = subset(df_plot, is_header),
+    aes(x = 0.02, label = subgroup),
+    hjust = 0, size = 3.7, fontface = "bold"
+  ) +
+  geom_text(
+    data = subset(df_plot, !is_header),
+    aes(x = 0.02, label = author_year),
+    hjust = 0, size = 3.2
+  ) +
+  geom_text(
+    data = subset(df_plot, !is_header),
+    aes(x = 0.55, label = comparison),
+    hjust = 0, size = 3.2
+  ) +
+  labs(
+    title    = "All-stroke incidence by ethnicity – North America",
+    subtitle = "Left: Author / Comparison • Middle: Forest (log-scale) • Right: Measure, ratio (95% CI) and ROBINS-E\nSymbols: diamonds=HR, circles=IRR; filled+solid=reported, open+dashed=calculated; squares=pooled HR"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(margin = margin(b = 6))
+  )
+
+# MIDDLE PANEL (forest)
+p_mid_na <- ggplot(df_mid, aes(y = y)) +
+  geom_hline(
+    data = subset(df_plot, is_header),
+    aes(yintercept = y),
+    colour = "grey85",
+    linewidth = 0.4
+  ) +
+  # CI segments
+  geom_segment(
+    data = subset(df_mid, !is_header),
+    aes(x = lo_cap, xend = hi_cap, yend = y, linetype = est_source),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  # Left overflow arrows
+  geom_segment(
+    data = subset(df_mid, left_overflow),
+    aes(x = x_min, xend = lo_cap, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  # Right overflow arrows
+  geom_segment(
+    data = subset(df_mid, right_overflow),
+    aes(x = hi_cap, xend = x_max, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  # Points
+  geom_point(
+    data = subset(df_mid, !is_header),
+    aes(x = x, shape = shape_group),
+    size  = 2.4,
+    stroke = 0.8,
+    fill  = "black"
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(
+    limits = c(x_min, x_max),
+    breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+    labels = label_number(accuracy = 0.01, trim = TRUE),
+    expand = c(0, 0)
+  ) +
+  scale_linetype_manual(
+    values = c(
+      reported   = "solid",
+      calculated = "22",
+      pooled     = "solid"
+    ),
+    breaks = c("reported", "calculated", "pooled")
+  ) +
+  scale_shape_manual(
+    values = c(
+      "HR.reported"   = 18, # filled diamond
+      "HR.calculated" = 5,  # open diamond
+      "HR.pooled"     = 0,  # square for pooled HR
+      "IRR.reported"  = 16, # filled circle
+      "IRR.calculated"= 1   # open circle
+    ),
+    na.translate = FALSE
+  ) +
+  guides(linetype = "none", shape = "none") +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.title         = element_blank(),
+    axis.text.y        = element_blank(),
+    axis.ticks         = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    plot.margin        = margin(5, 0, 5, 0)
+  )
+
+# RIGHT PANEL (measure + CI + ROB)
+p_right_na <- ggplot(df_plot, aes(y = y)) +
+  # Measure column
+  geom_text(
+    data = subset(df_plot, !is_header),
+    aes(x = 0.02, label = measure_label),
+    hjust = 0, size = 3.2, fontface = "bold"
+  ) +
+  # Effect + CI + tag
+  geom_text(
+    data = subset(df_plot, !is_header),
+    aes(x = 0.20, label = est_ci_tag),
+    hjust = 0, size = 3.2
+  ) +
+  # ROBINS-E
+  geom_text(
+    data = subset(df_plot, !is_header),
+    aes(x = 0.78, label = rob),
+    hjust = 0, size = 3.2
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+## ===================== 8. Combine & show =====================
+
+final_plot_na <- p_left_na + p_mid_na + p_right_na +
+  plot_layout(widths = c(1.2, 1.1, 0.9))
+
+final_plot_na
+
+
+## Europe
+
+## ===================== 0. Packages =====================
+library(dplyr)
+library(stringr)
+library(glue)
+library(ggplot2)
+library(patchwork)
+library(tibble)
+library(scales)
+
+## ===================== 1. Europe data =====================
+
+df_eu <- tribble(
+  ~subgroup,                         ~author_year,    ~study,        ~region,                     ~comparison,                          ~effect, ~lo,   ~hi,   ~rob,
+
+  # -------- Black vs White --------
+  "Black vs White",                  "Rabanal 2015",  "CVDNOR (women)", "Norway (nationwide)",    "Sub-Saharan Africa vs Norway (women)", 0.72, 0.48, 1.08, "Very high",
+  "Black vs White",                  "Rabanal 2015",  "CVDNOR (men)",   "Norway (nationwide)",    "Sub-Saharan Africa vs Norway (men)",   1.29, 1.07, 1.56, "Very high",
+  "Black vs White",                  "Bonnechère 2023","UK Biobank",    "UK (UK Biobank cohort)", "Black vs White",                       1.53, 1.17, 2.01, "High",
+
+  # -------- Latin American / Hispanic vs White --------
+  "Latin American / Hispanic vs White", "Rabanal 2015","CVDNOR (women)","Norway (nationwide)",    "Central America vs Norway (women)",    1.57, 0.65, 3.79, "Very high",
+  "Latin American / Hispanic vs White", "Rabanal 2015","CVDNOR (men)",  "Norway (nationwide)",    "Central America vs Norway (men)",      0.72, 0.24, 2.18, "Very high",
+  "Latin American / Hispanic vs White", "Rabanal 2015","CVDNOR (women)","Norway (nationwide)",    "South America vs Norway (women)",      0.99, 0.68, 1.44, "Very high",
+  "Latin American / Hispanic vs White", "Rabanal 2015","CVDNOR (men)",  "Norway (nationwide)",    "South America vs Norway (men)",        0.94, 0.68, 1.31, "Very high",
+
+  # -------- Asian vs White --------
+  "Asian vs White",                  "Bonnechère 2023","UK Biobank",   "UK (UK Biobank cohort)",  "Asian vs White",                       0.97, 0.74, 1.28, "High",
+  "Asian vs White",                  "Ramadan 2018",  "Bradford",      "UK (Bradford Stroke Study)","Pakistani vs White",                  1.53, 1.21, 1.94, "Very high",
+  "Asian vs White",                  "Mkoma 2021",    "Denmark",       "Denmark (nationwide)",    "Pakistani vs Danish-born",             2.12, 1.96, 2.28, "High",
+  "Asian vs White",                  "Mkoma 2021",    "Denmark",       "Denmark (nationwide)",    "Turkish vs Danish-born",               1.07, 0.93, 1.21, "High",
+  "Asian vs White",                  "Mkoma 2021",    "Denmark",       "Denmark (nationwide)",    "Iraqi vs Danish-born",                 1.46, 1.29, 1.64, "High",
+  "Asian vs White",                  "Mkoma 2021",    "Denmark",       "Denmark (nationwide)",    "Iranian vs Danish-born",               1.53, 1.34, 1.73, "High",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (women)","Norway (nationwide)",     "Middle East vs Norway (women)",        0.41, 0.31, 0.55, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (men)",  "Norway (nationwide)",     "Middle East vs Norway (men)",          0.40, 0.33, 0.47, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (women)","Norway (nationwide)",     "South Asia vs Norway (women)",         0.88, 0.73, 1.05, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (men)",  "Norway (nationwide)",     "South Asia vs Norway (men)",           0.77, 0.67, 0.88, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (women)","Norway (nationwide)",     "Southeast Asia vs Norway (women)",     0.67, 0.56, 0.79, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (men)",  "Norway (nationwide)",     "Southeast Asia vs Norway (men)",       0.55, 0.44, 0.69, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (women)","Norway (nationwide)",     "East Asia vs Norway (women)",          0.36, 0.22, 0.58, "Very high",
+  "Asian vs White",                  "Rabanal 2015",  "CVDNOR (men)",  "Norway (nationwide)",     "East Asia vs Norway (men)",            0.52, 0.37, 0.74, "Very high"
+)
+
+# Unique key
+df_eu <- df_eu %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+## ===================== 2. Measure (HR vs IRR) & est_source =====================
+
+# HR only for UK Biobank rows; all others IRR
+df_eu <- df_eu %>%
+  mutate(
+    measure = case_when(
+      author_year == "Bonnechère 2023" ~ "HR",
+      TRUE                             ~ "IRR"
+    )
+  )
+
+# Mark which estimates are "calculated" vs "reported"
+calculated_keys <- c(
+  # Sub-Saharan Africa vs Norway
+  paste("Rabanal 2015", "CVDNOR (women)", "Sub-Saharan Africa vs Norway (women)", sep = " | "),
+  paste("Rabanal 2015", "CVDNOR (men)",   "Sub-Saharan Africa vs Norway (men)",   sep = " | "),
+  # Latin America groups
+  paste("Rabanal 2015", "CVDNOR (women)", "Central America vs Norway (women)",    sep = " | "),
+  paste("Rabanal 2015", "CVDNOR (men)",   "Central America vs Norway (men)",      sep = " | "),
+  paste("Rabanal 2015", "CVDNOR (women)", "South America vs Norway (women)",      sep = " | "),
+  paste("Rabanal 2015", "CVDNOR (men)",   "South America vs Norway (men)",        sep = " | "),
+  # Bradford Pakistani vs White (WHO-standardised IRR)
+  paste("Ramadan 2018", "Bradford",       "Pakistani vs White",                   sep = " | ")
+)
+
+df_eu <- df_eu %>%
+  mutate(
+    est_source = if_else(key %in% calculated_keys, "calculated", "reported")
+  )
+
+## ===================== 3. Subgroup headers & ordering (no pooling) =====================
+
+# Headers
+make_headers_eu <- df_eu %>%
+  distinct(subgroup) %>%
+  mutate(
+    author_year = subgroup,
+    study       = "",
+    region      = "",
+    comparison  = "",
+    effect      = NA_real_,
+    lo          = NA_real_,
+    hi          = NA_real_,
+    rob         = "",
+    key         = paste0("HEADER_", subgroup),
+    est_source  = NA_character_,
+    measure     = "",
+    is_header   = TRUE
+  )
+
+# Study-level rows
+df_eu2 <- df_eu %>%
+  mutate(is_header = FALSE)
+
+# Ordering of comparisons within subgroups
+cmp_order_eu <- c(
+  # Black vs White
+  "Sub-Saharan Africa vs Norway (women)",
+  "Sub-Saharan Africa vs Norway (men)",
+  "Black vs White",
+  # Latin American / Hispanic vs White
+  "Central America vs Norway (women)",
+  "Central America vs Norway (men)",
+  "South America vs Norway (women)",
+  "South America vs Norway (men)",
+  # Asian vs White
+  "Asian vs White",
+  "Pakistani vs White",
+  "Pakistani vs Danish-born",
+  "Turkish vs Danish-born",
+  "Iraqi vs Danish-born",
+  "Iranian vs Danish-born",
+  "Middle East vs Norway (women)",
+  "Middle East vs Norway (men)",
+  "South Asia vs Norway (women)",
+  "South Asia vs Norway (men)",
+  "Southeast Asia vs Norway (women)",
+  "Southeast Asia vs Norway (men)",
+  "East Asia vs Norway (women)",
+  "East Asia vs Norway (men)"
+)
+
+## ===================== 4. Build df_plot =====================
+
+df_plot_eu <- bind_rows(df_eu2, make_headers_eu) %>%
+  arrange(subgroup, desc(is_header)) %>%
+  mutate(
+    cmp_key = if_else(is_header, paste0("0_", subgroup), comparison),
+    cmp_key = factor(
+      cmp_key,
+      levels = c(paste0("0_", unique(subgroup)), cmp_order_eu),
+      ordered = TRUE
+    )
+  ) %>%
+  arrange(subgroup, desc(is_header), cmp_key, author_year) %>%
+  mutate(
+    y = rev(row_number()),
+    est_ci = if_else(
+      is_header,
+      "",
+      glue("{measure} {sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")
+    ),
+    est_ci_tag = case_when(
+      is_header                  ~ "",
+      est_source == "reported"   ~ glue("{est_ci} [rep]"),
+      est_source == "calculated" ~ glue("{est_ci} [calc]"),
+      TRUE ~ ""
+    ),
+    measure_label = if_else(is_header, "", measure)
+  )
+
+## ===================== 5. Middle-panel helpers (shapes & truncation) =====================
+
+x_min <- 0.25
+x_max <- 5.0
+
+df_mid_eu <- df_plot_eu %>%
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = !is_header & lo < x_min,
+    right_overflow = !is_header & hi > x_max,
+    shape_group = if_else(
+      is_header, NA_character_,
+      paste(measure, est_source, sep = ".")
+    ),
+    shape_group = factor(
+      shape_group,
+      levels = c("HR.reported", "HR.calculated",
+                 "IRR.reported", "IRR.calculated")
+    )
+  )
+
+## ===================== 6. Panels =====================
+
+# LEFT PANEL
+p_left_eu <- ggplot(df_plot_eu, aes(y = y)) +
+  geom_text(
+    data = subset(df_plot_eu, is_header),
+    aes(x = 0.02, label = subgroup),
+    hjust = 0, size = 3.7, fontface = "bold"
+  ) +
+  geom_text(
+    data = subset(df_plot_eu, !is_header),
+    aes(x = 0.02, label = author_year),
+    hjust = 0, size = 3.2
+  ) +
+  geom_text(
+    data = subset(df_plot_eu, !is_header),
+    aes(x = 0.55, label = comparison),
+    hjust = 0, size = 3.2
+  ) +
+  labs(
+    title    = "All-stroke incidence by ethnicity – Europe",
+    subtitle = "Left: Author / Comparison • Middle: Forest (log-scale) • Right: Measure, ratio (95% CI) and ROBINS-E\nSymbols: diamonds=HR, circles=IRR; filled+solid=reported, open+dashed=calculated"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(margin = margin(b = 6))
+  )
+
+# MIDDLE PANEL
+p_mid_eu <- ggplot(df_mid_eu, aes(y = y)) +
+  geom_hline(
+    data = subset(df_plot_eu, is_header),
+    aes(yintercept = y),
+    colour = "grey85",
+    linewidth = 0.4
+  ) +
+  geom_segment(
+    data = subset(df_mid_eu, !is_header),
+    aes(x = lo_cap, xend = hi_cap, yend = y, linetype = est_source),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_segment(
+    data = subset(df_mid_eu, left_overflow),
+    aes(x = x_min, xend = lo_cap, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_segment(
+    data = subset(df_mid_eu, right_overflow),
+    aes(x = hi_cap, xend = x_max, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_point(
+    data = subset(df_mid_eu, !is_header),
+    aes(x = x, shape = shape_group),
+    size  = 2.4,
+    stroke = 0.8,
+    fill  = "black"
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(
+    limits = c(x_min, x_max),
+    breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+    labels = label_number(accuracy = 0.01, trim = TRUE),
+    expand = c(0, 0)
+  ) +
+  labs(x = "Risk Ratio (log scale)") +
+  scale_linetype_manual(
+    values = c(
+      reported   = "solid",
+      calculated = "22"
+    ),
+    breaks = c("reported", "calculated")
+  ) +
+  scale_shape_manual(
+    values = c(
+      "HR.reported"   = 18, # filled diamond
+      "HR.calculated" = 5,  # open diamond (unused here, but defined)
+      "IRR.reported"  = 16, # filled circle
+      "IRR.calculated"= 1   # open circle
+    ),
+    na.translate = FALSE
+  ) +
+  guides(linetype = "none", shape = "none") +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.title         = element_text(),
+    axis.text.y        = element_blank(),
+    axis.ticks         = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    plot.margin        = margin(5, 0, 5, 0)
+  )
+
+# RIGHT PANEL
+p_right_eu <- ggplot(df_plot_eu, aes(y = y)) +
+  geom_text(
+    data = subset(df_plot_eu, !is_header),
+    aes(x = 0.02, label = measure_label),
+    hjust = 0, size = 3.2, fontface = "bold"
+  ) +
+  geom_text(
+    data = subset(df_plot_eu, !is_header),
+    aes(x = 0.20, label = est_ci_tag),
+    hjust = 0, size = 3.2
+  ) +
+  geom_text(
+    data = subset(df_plot_eu, !is_header),
+    aes(x = 0.78, label = rob),
+    hjust = 0, size = 3.2
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+## ===================== 7. Combine & show =====================
+
+final_plot_eu <- p_left_eu + p_mid_eu + p_right_eu +
+  plot_layout(widths = c(1.3, 1.1, 0.9))
+
+final_plot_eu
+
+
+## Oceania
+## ===================== 0. Packages =====================
+library(dplyr)
+library(stringr)
+library(glue)
+library(ggplot2)
+library(patchwork)
+library(tibble)
+library(scales)
+
+## ===================== 1. Oceania data =====================
+
+df_oc <- tribble(
+  ~subgroup,                                 ~author_year,        ~study,        ~region,                       ~comparison,                              ~effect, ~lo,   ~hi,   ~rob,        ~calc,
+  # Asian / Other vs NZ European
+  "Asian/Other vs NZ European",              "Feigin 2025",       "ARCOS V",     "New Zealand – Auckland",      "Asian/Other vs NZ European",             1.05,   0.90, 1.20, "High",       TRUE,
+
+  # Pacific & Māori vs NZ European / European
+  "Pacific / Māori vs NZ European / European","Feigin 2025",      "ARCOS V",     "New Zealand – Auckland",      "Māori vs NZ European",                   1.38,   1.10, 1.60, "High",       TRUE,
+  "Pacific / Māori vs NZ European / European","Krishnamurthi 2018","ARCOS IV",   "New Zealand – Auckland",      "Pacific vs European",                    1.61,   1.39, 1.87, "High",       TRUE,
+  "Pacific / Māori vs NZ European / European","Feigin 2025",      "ARCOS V",     "New Zealand – Auckland",      "Pacific vs NZ European",                 1.82,   1.60, 2.10, "High",       TRUE,
+
+  # Aboriginal vs non-Indigenous
+  "Aboriginal vs non-Indigenous",            "Balabanski 2023",   "Australia",   "Australia – WA/SA/NT",        "Aboriginal vs non-Aboriginal (women)",   3.20,   2.40, 4.40, "High",       FALSE,
+  "Aboriginal vs non-Indigenous",            "Balabanski 2023",   "Australia",   "Australia – WA/SA/NT",        "Aboriginal vs non-Aboriginal (men)",     2.60,   2.00, 3.50, "High",       FALSE,
+  "Aboriginal vs non-Indigenous",            "Balabanski 2020",   "Australia",   "Australia – Central NT",      "Aboriginal vs non-Aboriginal",           3.00,   2.00, 4.00, "Very high",  FALSE,
+  "Aboriginal vs non-Indigenous",            "Balabanski 2018",   "Australia",   "Australia – SA (pilot)",      "Aboriginal vs non-Aboriginal",           1.70,   1.30, 2.30, "Very high",  FALSE,
+  "Aboriginal vs non-Indigenous",            "Dos Santos 2024",   "SAINTSS",     "Australia – SA & NT (pilot)", "Aboriginal vs non-Indigenous",           2.90,   2.00, 4.00, "Very high",  FALSE
+)
+
+# Unique key
+df_oc <- df_oc %>%
+  mutate(key = str_squish(paste(author_year, study, comparison, sep = " | ")))
+
+## ===================== 2. Measure & source =====================
+
+df_oc <- df_oc %>%
+  mutate(
+    measure    = "IRR",                                   # treat RR as IRR for plotting
+    est_source = if_else(calc, "calculated", "reported")
+  )
+
+## ===================== 3. Subgroup headers & ordering (no pooling) =====================
+
+make_headers_oc <- df_oc %>%
+  distinct(subgroup) %>%
+  mutate(
+    author_year = subgroup,
+    study       = "",
+    region      = "",
+    comparison  = "",
+    effect      = NA_real_,
+    lo          = NA_real_,
+    hi          = NA_real_,
+    rob         = "",
+    key         = paste0("HEADER_", subgroup),
+    est_source  = NA_character_,
+    measure     = "",
+    calc        = NA,
+    is_header   = TRUE
+  )
+
+df_oc2 <- df_oc %>% mutate(is_header = FALSE)
+
+cmp_order_oc <- c(
+  # Asian/Other
+  "Asian/Other vs NZ European",
+  # Pacific / Māori
+  "Māori vs NZ European",
+  "Pacific vs European",
+  "Pacific vs NZ European",
+  # Aboriginal
+  "Aboriginal vs non-Aboriginal (women)",
+  "Aboriginal vs non-Aboriginal (men)",
+  "Aboriginal vs non-Aboriginal",
+  "Aboriginal vs non-Indigenous"
+)
+
+## ===================== 4. Build df_plot =====================
+
+df_plot_oc <- bind_rows(df_oc2, make_headers_oc) %>%
+  arrange(subgroup, desc(is_header)) %>%
+  mutate(
+    cmp_key = if_else(is_header, paste0("0_", subgroup), comparison),
+    cmp_key = factor(
+      cmp_key,
+      levels = c(paste0("0_", unique(subgroup)), cmp_order_oc),
+      ordered = TRUE
+    )
+  ) %>%
+  arrange(subgroup, desc(is_header), cmp_key, author_year) %>%
+  mutate(
+    y = rev(row_number()),
+    est_ci = if_else(
+      is_header,
+      "",
+      glue("{measure} {sprintf('%.2f', effect)} ({sprintf('%.2f', lo)}–{sprintf('%.2f', hi)})")
+    ),
+    est_ci_tag = case_when(
+      is_header                  ~ "",
+      est_source == "reported"   ~ glue("{est_ci} [rep]"),
+      est_source == "calculated" ~ glue("{est_ci} [calc]"),
+      TRUE ~ ""
+    ),
+    measure_label = if_else(is_header, "", measure)
+  )
+
+## ===================== 5. Middle-panel helpers =====================
+
+x_min <- 0.25
+x_max <- 5.0
+
+df_mid_oc <- df_plot_oc %>%
+  mutate(
+    x      = effect,
+    lo_cap = pmax(lo, x_min),
+    hi_cap = pmin(hi, x_max),
+    left_overflow  = !is_header & lo < x_min,
+    right_overflow = !is_header & hi > x_max,
+    shape_group = if_else(
+      is_header, NA_character_,
+      paste(measure, est_source, sep = ".")
+    ),
+    shape_group = factor(
+      shape_group,
+      levels = c("IRR.reported", "IRR.calculated")
+    )
+  )
+
+## ===================== 6. Panels =====================
+
+# LEFT PANEL
+p_left_oc <- ggplot(df_plot_oc, aes(y = y)) +
+  geom_text(
+    data = subset(df_plot_oc, is_header),
+    aes(x = 0.02, label = subgroup),
+    hjust = 0, size = 3.7, fontface = "bold"
+  ) +
+  geom_text(
+    data = subset(df_plot_oc, !is_header),
+    aes(x = 0.02, label = author_year),
+    hjust = 0, size = 3.2
+  ) +
+  geom_text(
+    data = subset(df_plot_oc, !is_header),
+    aes(x = 0.55, label = comparison),
+    hjust = 0, size = 3.2
+  ) +
+  labs(
+    title    = "All-stroke incidence by ethnicity – Oceania",
+    subtitle = "Left: Author / Comparison • Middle: Forest (log-scale) • Right: Measure, ratio (95% CI) and ROBINS-E\nSymbols: circles=IRR/RR; filled+solid=reported, open+dashed=calculated"
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11) +
+  theme(
+    plot.title    = element_text(face = "bold"),
+    plot.subtitle = element_text(margin = margin(b = 6))
+  )
+
+# MIDDLE PANEL
+p_mid_oc <- ggplot(df_mid_oc, aes(y = y)) +
+  geom_hline(
+    data = subset(df_plot_oc, is_header),
+    aes(yintercept = y),
+    colour = "grey85",
+    linewidth = 0.4
+  ) +
+  geom_segment(
+    data = subset(df_mid_oc, !is_header),
+    aes(x = lo_cap, xend = hi_cap, yend = y, linetype = est_source),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_segment(
+    data = subset(df_mid_oc, left_overflow),
+    aes(x = x_min, xend = lo_cap, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_segment(
+    data = subset(df_mid_oc, right_overflow),
+    aes(x = hi_cap, xend = x_max, yend = y, linetype = est_source),
+    arrow = arrow(length = unit(3, "pt"), type = "closed"),
+    linewidth = 0.5,
+    colour = "black"
+  ) +
+  geom_point(
+    data = subset(df_mid_oc, !is_header),
+    aes(x = x, shape = shape_group),
+    size  = 2.4,
+    stroke = 0.8,
+    fill  = "black"
+  ) +
+  geom_vline(xintercept = 1, linetype = "dashed", colour = "grey50") +
+  scale_x_log10(
+    limits = c(x_min, x_max),
+    breaks = c(0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5),
+    labels = label_number(accuracy = 0.01, trim = TRUE),
+    expand = c(0, 0)
+  ) +
+  labs(x = "Risk Ratio (log scale)") +
+  scale_linetype_manual(
+    values = c(
+      reported   = "solid",
+      calculated = "22"
+    ),
+    breaks = c("reported", "calculated")
+  ) +
+  scale_shape_manual(
+    values = c(
+      "IRR.reported"   = 16, # filled circle
+      "IRR.calculated" = 1   # open circle
+    ),
+    na.translate = FALSE
+  ) +
+  guides(linetype = "none", shape = "none") +
+  coord_cartesian(clip = "off") +
+  theme_minimal(base_size = 11) +
+  theme(
+    axis.title         = element_text(),
+    axis.text.y        = element_blank(),
+    axis.ticks         = element_blank(),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor   = element_blank(),
+    plot.margin        = margin(5, 0, 5, 0)
+  )
+
+# RIGHT PANEL
+p_right_oc <- ggplot(df_plot_oc, aes(y = y)) +
+  geom_text(
+    data = subset(df_plot_oc, !is_header),
+    aes(x = 0.02, label = measure_label),
+    hjust = 0, size = 3.2, fontface = "bold"
+  ) +
+  geom_text(
+    data = subset(df_plot_oc, !is_header),
+    aes(x = 0.20, label = est_ci_tag),
+    hjust = 0, size = 3.2
+  ) +
+  geom_text(
+    data = subset(df_plot_oc, !is_header),
+    aes(x = 0.78, label = rob),
+    hjust = 0, size = 3.2
+  ) +
+  scale_x_continuous(limits = c(0, 1), breaks = NULL) +
+  scale_y_continuous(NULL, breaks = NULL) +
+  theme_void(base_size = 11)
+
+## ===================== 7. Combine & show =====================
+
+final_plot_oc <- p_left_oc + p_mid_oc + p_right_oc +
+  plot_layout(widths = c(1.3, 1.1, 0.9))
+
+final_plot_oc
+
