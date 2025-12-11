@@ -893,3 +893,58 @@ final_plot_oc <- p_left_oc + p_mid_oc + p_right_oc +
 
 final_plot_oc
 
+## ===================== 8. Checks =====================
+# Log transform
+## install.packages("metafor")  # run once if not installed
+library(dplyr)
+library(metafor)
+
+# Two studies: Gardener 2020 (NOMAS) & Koton 2020 (ARIC)
+na_bw <- tibble(
+  study       = c("NOMAS", "ARIC"),
+  author_year = c("Gardener 2020", "Koton 2020"),
+  hr          = c(1.33, 1.85),
+  lo          = c(0.99, 1.65),
+  hi          = c(1.79, 2.06)
+)
+
+na_bw <- na_bw %>%
+  mutate(
+    yi  = log(hr),
+    sei = (log(hi) - log(lo)) / (2 * 1.96),
+    vi  = sei^2
+  )
+
+na_bw
+
+# Random effects
+## Random-effects (DL)
+res_re <- rma(yi = yi, vi = vi, data = na_bw, method = "DL")
+
+## Fixed-effect (inverse-variance)
+res_fe <- rma(yi = yi, vi = vi, data = na_bw, method = "FE")
+
+summary(res_re)
+summary(res_fe)
+
+# Back to ratio scale
+# Pooled HR + 95% CI (random-effects)
+pooled_re <- exp(cbind(
+  HR    = res_re$b,
+  CI_lo = res_re$ci.lb,
+  CI_hi = res_re$ci.ub
+))
+
+# I² (random-effects)
+I2_re <- res_re$I2
+
+# Pooled HR + 95% CI (fixed-effect)
+pooled_fe <- exp(cbind(
+  HR    = res_fe$b,
+  CI_lo = res_fe$ci.lb,
+  CI_hi = res_fe$ci.ub
+))
+
+pooled_re
+I2_re
+pooled_fe
